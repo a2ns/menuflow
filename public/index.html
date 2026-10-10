@@ -169,6 +169,19 @@
   </div>
 </div>
 
+<div class="modal" id="move-modal" onclick="if(event.target===this)closeMoveModal()">
+  <div class="modal-box">
+    <h3>Déplacer le repas</h3>
+    <select id="move-day"></select>
+    <div class="slot-picker">
+      <button id="move-lunch" onclick="setMoveSlot('lunch')">Midi</button>
+      <button id="move-dinner" onclick="setMoveSlot('dinner')">Soir</button>
+    </div>
+    <p id="move-info" style="font-size:0.8rem;color:#888;margin-bottom:10px"></p>
+    <button class="btn" onclick="doMove()">⇄ Déplacer</button>
+  </div>
+</div>
+
 <div class="modal" id="pick-modal" onclick="if(event.target===this)closePickModal()">
   <div class="modal-box">
     <h3>Placer une recette</h3>
@@ -373,13 +386,14 @@ async function loadWeek() {
         const r = week[day][slot];
         if (!r) return '';
         kcal += r.kcal; p += r.protein_g; c += r.carbs_g; f += r.fat_g; n++;
-        return `<div class="meal" onclick="openRecipe(${r.id}, ${escAttr(r.ingredients || [])}, ${r.servingsWanted || 0}, ${escAttr({ prep_minutes: r.prep_minutes || 0, cook_minutes: r.cook_minutes || 0 })})">
-          ${r.image ? `<img src="${esc(r.image)}" onerror="this.remove()">` : ''}
-          <div>
+        return `<div class="meal">
+          <div style="flex:1;cursor:pointer" onclick="openRecipe(${r.id}, ${escAttr(r.ingredients || [])}, ${r.servingsWanted || 0}, ${escAttr({ prep_minutes: r.prep_minutes || 0, cook_minutes: r.cook_minutes || 0 })})">
             <div class="meal-slot">${slot === 'lunch' ? 'Midi' : 'Soir'}</div>
             <div class="meal-name">${esc(r.name)}</div>
             <div class="macros">${r.kcal} kcal · P${Math.round(r.protein_g)} C${Math.round(r.carbs_g)} F${Math.round(r.fat_g)}${(r.prep_minutes || r.cook_minutes) ? ' · ⏱ ' + ((r.prep_minutes || 0) + (r.cook_minutes || 0)) + ' min' : ''}</div>
           </div>
+          ${r.image ? `<img src="${esc(r.image)}" onerror="this.remove()" onclick="openRecipe(${r.id}, ${escAttr(r.ingredients || [])}, ${r.servingsWanted || 0}, ${escAttr({ prep_minutes: r.prep_minutes || 0, cook_minutes: r.cook_minutes || 0 })})">` : ''}
+          <button class="btn small" style="padding:8px 10px;font-size:0.85rem;align-self:center" onclick="openMove('${day}','${slot}')" title="Déplacer">⇄</button>
         </div>`;
       }).join('')}
     </div>`).join('');
@@ -408,7 +422,7 @@ async function loadShopping() {
     document.getElementById('shop-servings').textContent = '';
   }
   el.innerHTML = (data.items || []).length
-    ? data.items.map(i => `<label class="shop-item"><input type="checkbox"> <span><strong>${esc(i.name)}</strong>${i.missingLabel && i.missingLabel !== i.qtyLabel ? ' — <span style="color:#e8590c">manque ' + esc(i.missingLabel) + '</span> <span style="color:#999;font-size:0.75rem">(besoin ' + esc(i.qtyLabel) + ')</span>' : (i.qtyLabel ? ' — ' + esc(i.qtyLabel) : '')}${i.loose && i.loose.length ? ' <span style="color:#999;font-size:0.75rem">(' + esc(i.loose.join(' ; ')) + ')</span>' : ''} <span style="color:#999;font-size:0.75rem">${i.mealCount}x</span></span></label>`).join('')
+    ? (() => { const cats = {}; for (const i of data.items) (cats[i.category || 'Autres'] = cats[i.category || 'Autres'] || []).push(i); const ORDER = ['Fruits & Légumes','Boucherie','Poissonnerie','Crèmerie','Boulangerie','Épicerie salée','Épices & Condiments','Surgelés','Autres']; return ORDER.filter(c => cats[c]).concat(Object.keys(cats).filter(c => !ORDER.includes(c))).map(cat => `<h2 style="font-size:0.9rem;margin:14px 0 6px">${esc(cat)}</h2>` + cats[cat].map(i => `<label class="shop-item"><input type="checkbox"> <span><strong>${esc(i.name)}</strong>${i.missingLabel && i.missingLabel !== i.qtyLabel ? ' — <span style="color:#e8590c">manque ' + esc(i.missingLabel) + '</span> <span style="color:#999;font-size:0.75rem">(besoin ' + esc(i.qtyLabel) + ')</span>' : (i.qtyLabel ? ' — ' + esc(i.qtyLabel) : '')}${i.loose && i.loose.length ? ' <span style="color:#999;font-size:0.75rem">(' + esc(i.loose.join(' ; ')) + ')</span>' : ''} <span style="color:#999;font-size:0.75rem">${i.mealCount}x</span></span></label>`).join('')).join(''); })()
     : '<p style="color:#999;font-size:0.85rem">Génère une semaine pour voir la liste de courses.</p>';
 }
 
@@ -472,6 +486,33 @@ async function importData(input) {
 
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function escAttr(v) { return JSON.stringify(v ?? []).replace(/"/g, '&quot;'); }
+
+let moveFrom = null, moveSlot = 'lunch';
+
+function openMove(day, slot) {
+  moveFrom = { day, slot };
+  document.getElementById('move-day').innerHTML = DAYS.map(d => `<option ${d === day ? 'disabled' : ''}>${d}</option>`).join('');
+  setMoveSlot(slot);
+  document.getElementById('move-info').textContent = `Le repas échangera sa place avec celui de la destination choisie.`;
+  document.getElementById('move-modal').classList.add('open');
+}
+
+function setMoveSlot(slot) {
+  moveSlot = slot;
+  document.getElementById('move-lunch').classList.toggle('active', slot === 'lunch');
+  document.getElementById('move-dinner').classList.toggle('active', slot === 'dinner');
+}
+
+function closeMoveModal() { document.getElementById('move-modal').classList.remove('open'); }
+
+async function doMove() {
+  const toDay = document.getElementById('move-day').value;
+  const res = await fetch('/api/plans/current/swap', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ fromDay: moveFrom.day, fromSlot: moveFrom.slot, toDay, toSlot: moveSlot }) });
+  if (!res.ok) return showMsg('Erreur au déplacement', false);
+  closeMoveModal();
+  await Promise.all([loadWeek(), loadShopping()]);
+  showMsg('Repas déplacé ✅', true);
+}
 
 (async () => {
   await loadTargets();

@@ -162,9 +162,28 @@ app.put('/api/plans/current/meal', (req, res) => {
     .run(plan.id, day, slot, recipe_id);
   res.json({ ok: true });
 });
-
-const MASS_UNITS = { g: 1, kg: 1000 };
-const VOL_UNITS = { ml: 1, cl: 10, l: 1000 };
+app.put('/api/plans/current/swap', (req, res) => {
+  const { fromDay, fromSlot, toDay, toSlot } = req.body || {};
+  const plan = db.prepare('SELECT * FROM meal_plans ORDER BY id DESC LIMIT 1').get();
+  if (!plan) return res.status(404).json({ error: 'Aucun plan' });
+  if (!DAYS.includes(fromDay) || !DAYS.includes(toDay) || !SLOTS.includes(fromSlot) || !SLOTS.includes(toSlot)) return res.status(400).json({ error: 'Emplacement invalide' });
+  const from = db.prepare('SELECT recipe_id FROM plan_meals WHERE plan_id = ? AND day = ? AND slot = ?').get(plan.id, fromDay, fromSlot);
+  const to = db.prepare('SELECT recipe_id FROM plan_meals WHERE plan_id = ? AND day = ? AND slot = ?').get(plan.id, toDay, toSlot);
+  if (!from) return res.status(404).json({ error: 'Aucun repas à cet emplacement' });
+  const tx = db.transaction(() => {
+    if (to) {
+      db.prepare('UPDATE plan_meals SET recipe_id = ? WHERE plan_id = ? AND day = ? AND slot = ?').run(to.recipe_id, plan.id, fromDay, fromSlot);
+      db.prepare('UPDATE plan_meals SET recipe_id = ? WHERE plan_id = ? AND day = ? AND slot = ?').run(from.recipe_id, plan.id, toDay, toSlot);
+    } else {
+      db.prepare('UPDATE plan_meals SET day = ?, slot = ? WHERE plan_id = ? AND day = ? AND slot = ?').run(toDay, toSlot, plan.id, fromDay, fromSlot);
+    }
+  });
+  tx();
+  res.json({ ok: true });
+});
+const MASS_UNITS = { g: 1, kg: 1000, oz: 28.35, once: 28.35, onces: 28.35, liv: 454, livre: 454, livres: 454, lb: 454, lbs: 454 };
+const VOL_UNITS = { ml: 1, cl: 10, l: 1000, cup: 240, cups: 240, tasse: 240, tasses: 240 };
+const { spoonToGrams, categorize } = require('./shopping-meta');
 
 app.get('/api/shopping-list', (req, res) => {
   const plan = db.prepare('SELECT * FROM meal_plans ORDER BY id DESC LIMIT 1').get();
@@ -189,6 +208,9 @@ app.get('/api/shopping-list', (req, res) => {
       entry.mass += scaled * MASS_UNITS[i.unit];
     } else if (i.unit && VOL_UNITS[i.unit]) {
       entry.vol += scaled * VOL_UNITS[i.unit];
+    } else if (i.unit && (i.unit === 'c. à soupe' || i.unit === 'c. à café')) {
+      const g = spoonToGrams(i.name, i.unit, scaled);
+      if (g != null) entry.mass += g; else { entry.unit = i.unit; entry.count += scaled; }
     } else if (i.unit) {
       entry.unit = i.unit;
       entry.count += scaled;
@@ -233,6 +255,7 @@ app.get('/api/shopping-list', (req, res) => {
     }
     return {
       name: e.name,
+      category: categorize(e.name),
       mealCount: e.mealCount,
       qtyLabel,
       missingLabel,

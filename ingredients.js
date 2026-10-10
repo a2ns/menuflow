@@ -4,7 +4,9 @@ const UNITS = [
   { re: /^(l|litres?|litre)\b/i, unit: 'L', ml: 1000 },
   { re: /^(cl|centilitres?)\b/i, unit: 'cl', ml: 10 },
   { re: /^(ml|millilitres?)\b/i, unit: 'ml', ml: 1 },
-  { re: /^(c\.\s*à\s*[sc]\.\s*(?:de\s*)?|cuillères?\s*à\s*(?:soupe|café)\s*(?:d[e']\s*)?|c\.à\.s\.?|c\.à\.c\.?|cas|cac)\b/i, unit: 'c. à soupe' },
+  { re: /^(c\.\s*à\s*c\.\s*(?:de\s*)?|cuillères?\s*à\s*café\s*(?:d[e']\s*)?|c\.à\.c\.?|càc|cac\b|cac\b|tsps?\b|teaspoons?\b)\b/i, unit: 'c. à café' },
+  { re: /^(c\.\s*à\s*s\.\s*(?:de\s*)?|cuillères?\s*à\s*soupe\s*(?:d[e']\s*)?|c\.à\.s\.?|càs|cas\b|tbsp\b|tablespoons?\b)\b/i, unit: 'c. à soupe' },
+  { re: /^(tasses?|cups?|liv\.?|livres?|lb\b|lbs\b|pounds?\b|oz\b|onces?|pintes?|pints?|gousses?|tiges?|brins?|tranches?|branches?)\b/i, unit: null, countable: true },
   { re: /^(pincées?|poignées?|tranches?|gousses?|feuilles?|branches?|boîtes?|boules?|sachets?|barquettes?|pots?|briques?|bottes?|tablettes?|verres?|tasses?|paquets?|pieces?|pièces?)\b/i, unit: null, countable: true },
 ];
 
