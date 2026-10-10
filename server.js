@@ -141,7 +141,7 @@ app.post('/api/plans/generate', (req, res) => {
   const targets = currentSettings();
   const recipes = db.prepare('SELECT * FROM recipes').all();
   const week = planWeek(recipes, targets);
-  if (!week) return res.status(400).json({ error: 'Aucune recette disponible. Importe des recettes d'abord.' });
+  if (!week) return res.status(400).json({ error: 'Aucune recette disponible. Importe des recettes d’abord.' });
   const info = db.prepare('INSERT INTO meal_plans (name, week_start, kcal_target, protein_target, carbs_target, fat_target) VALUES (?, ?, ?, ?, ?, ?)')
     .run('Semaine auto', new Date().toISOString().slice(0, 10), targets.kcalTarget, targets.proteinTarget, targets.carbsTarget, targets.fatTarget);
   const ins = db.prepare('INSERT INTO plan_meals (plan_id, day, slot, recipe_id) VALUES (?, ?, ?, ?)');
@@ -261,7 +261,7 @@ app.delete('/api/stock/:id', (req, res) => {
 
 app.get('/api/shopping-list/export', (req, res) => {
   const plan = db.prepare('SELECT * FROM meal_plans ORDER BY created_at DESC LIMIT 1').get();
-  if (!plan) return res.type('text/plain; charset=utf-8').send('Aucun plan de repas. Génère d'abord une semaine.');
+  if (!plan) return res.type('text/plain; charset=utf-8').send('Aucun plan de repas. Génère d’abord une semaine.');
   const settings = currentSettings();
   const rows = db.prepare(`
     SELECT i.name, i.quantity, i.qty, i.unit, r.servings as recipe_servings, pm.slot
