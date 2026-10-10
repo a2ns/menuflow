@@ -106,6 +106,10 @@
       <button class="btn" style="width:auto;white-space:nowrap" onclick="addStock()">➕</button>
     </div>
     <div id="stock-list"></div>
+    <div id="suggest-block" style="display:none">
+      <h2 style="font-size:0.9rem;margin:14px 0 6px">💡 Recettes avec ce que tu as</h2>
+      <div id="suggest-list"></div>
+    </div>
     <div style="display:flex;gap:8px;margin:10px 0">
       <button class="btn secondary" onclick="exportList('copy')">📋 Copier</button>
       <button class="btn secondary" onclick="exportList('share')">📤 Partager</button>
@@ -254,7 +258,7 @@ async function saveTargets() {
   const res = await fetch('/api/settings', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
   targets = await res.json();
   renderMacroPreview();
-  await Promise.all([loadWeek(), loadShopping()]);
+  await Promise.all([loadWeek(), loadShopping(), loadSuggestions()]);
   showMsg('Cibles enregistrées ✅', true);
 }
 
@@ -358,7 +362,7 @@ async function assignMeal() {
   const res = await fetch('/api/plans/current/meal', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ day, slot: pickSlot, recipe_id }) });
   if (!res.ok) return showMsg('Génère d’abord une semaine', false);
   closePickModal();
-  await Promise.all([loadWeek(), loadShopping()]);
+  await Promise.all([loadWeek(), loadShopping(), loadSuggestions()]);
   showMsg('Repas placé ✅', true);
 }
 
@@ -366,7 +370,7 @@ async function generatePlan() {
   const res = await fetch('/api/plans/generate', { method: 'POST' });
   const data = await res.json();
   if (!res.ok) return showMsg(data.error, false);
-  await Promise.all([loadWeek(), loadShopping()]);
+  await Promise.all([loadWeek(), loadShopping(), loadSuggestions()]);
   showMsg('Semaine générée ✨', true);
 }
 
@@ -426,6 +430,24 @@ async function loadShopping() {
     : '<p style="color:#999;font-size:0.85rem">Génère une semaine pour voir la liste de courses.</p>';
 }
 
+async function loadSuggestions() {
+  const stock = await (await fetch('/api/stock')).json();
+  const block = document.getElementById('suggest-block');
+  const el = document.getElementById('suggest-list');
+  if (!stock.length) { block.style.display = 'none'; return; }
+  const data = await (await fetch('/api/recipes/suggest')).json();
+  block.style.display = data.length ? '' : 'none';
+  el.innerHTML = data.map(s => `
+    <div class="recipe-item">
+      <div style="flex:1;cursor:pointer" onclick="openRecipe(${s.id})">
+        <strong>${esc(s.name)}</strong>
+        <div class="macros">${Math.round(s.score * 100)}% en stock (${s.have}/${s.total} ingrédients) · ${s.kcal} kcal${(s.prep_minutes || s.cook_minutes) ? ' · ⏱ ' + ((s.prep_minutes || 0) + (s.cook_minutes || 0)) + ' min' : ''}</div>
+        ${s.missing.length ? '<div class="macros" style="color:#e8590c">manque : ' + esc(s.missing.join(', ')) + '</div>' : '<div class="macros" style="color:#187a4c">tu as tout ! 🎉</div>'}
+      </div>
+      <button class="small btn" style="padding:5px 10px;font-size:0.75rem" onclick="openPick(${s.id})">Placer</button>
+    </div>`).join('');
+}
+
 async function addStock() {
   const input = document.getElementById('stock-input');
   const v = input.value.trim();
@@ -433,13 +455,13 @@ async function addStock() {
   const res = await fetch('/api/stock', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name: v }) });
   if (!res.ok) return showMsg('Erreur à l’ajout', false);
   input.value = '';
-  await loadShopping();
+  await Promise.all([loadShopping(), loadSuggestions()]);
   showMsg('Ajouté au frigo ✅', true);
 }
 
 async function delStock(id) {
   await fetch('/api/stock/' + id, { method: 'DELETE' });
-  await loadShopping();
+  await Promise.all([loadShopping(), loadSuggestions()]);
 }
 
 async function exportList(mode) {
@@ -510,7 +532,7 @@ async function doMove() {
   const res = await fetch('/api/plans/current/swap', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ fromDay: moveFrom.day, fromSlot: moveFrom.slot, toDay, toSlot: moveSlot }) });
   if (!res.ok) return showMsg('Erreur au déplacement', false);
   closeMoveModal();
-  await Promise.all([loadWeek(), loadShopping()]);
+  await Promise.all([loadWeek(), loadShopping(), loadSuggestions()]);
   showMsg('Repas déplacé ✅', true);
 }
 
@@ -518,7 +540,7 @@ async function doMove() {
   await loadTargets();
   await loadRecipes();
   await loadWeek();
-  await loadShopping();
+  await Promise.all([loadShopping(), loadSuggestions()]);
   showTab('week');
 })();
 </script>

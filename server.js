@@ -283,6 +283,33 @@ app.delete('/api/stock/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/api/recipes/suggest', (req, res) => {
+  const stock = db.prepare('SELECT * FROM stock').all();
+  const stockByName = new Map();
+  for (const s of stock) stockByName.set(normalizeName(s.name), s);
+  const recipes = db.prepare('SELECT * FROM recipes').all().map(recipeWithIngredients);
+  const scored = recipes.map((r) => {
+    let have = 0, missing = [], missingMass = 0;
+    for (const ing of r.ingredients || []) {
+      const key = normalizeName(ing.name);
+      const s = stockByName.get(key);
+      if (s && s.qty != null && ing.qty != null) {
+        const needG = (MASS_UNITS[ing.unit] ? ing.qty * MASS_UNITS[ing.unit] : (VOL_UNITS[ing.unit] ? ing.qty * VOL_UNITS[ing.unit] : null));
+        const haveG = (MASS_UNITS[s.unit] ? s.qty * MASS_UNITS[s.unit] : (VOL_UNITS[s.unit] ? s.qty * VOL_UNITS[s.unit] : null));
+        if (needG != null && haveG != null && haveG >= needG * 0.8) { have++; continue; }
+      }
+      if (s && s.qty == null && ing.qty == null) { have++; continue; }
+      if (s && (ing.qty == null || s.qty == null)) { have++; continue; }
+      missing.push(ing.quantity || [ing.qty, ing.unit, ing.name].filter(Boolean).join(' ').trim() || ing.name);
+    }
+    const total = (r.ingredients || []).length || 1;
+    return { id: r.id, name: r.name, image: r.image, kcal: r.kcal, prep_minutes: r.prep_minutes, cook_minutes: r.cook_minutes, score: have / total, have, total, missing: missing.slice(0, 8) };
+  }).filter(s => s.score >= 0.5 && s.total >= 2)
+    .sort((a, b) => b.score - a.score || a.missing.length - b.missing.length)
+    .slice(0, 12);
+  res.json(scored);
+});
+
 app.get('/api/shopping-list/export', (req, res) => {
   const plan = db.prepare('SELECT * FROM meal_plans ORDER BY id DESC LIMIT 1').get();
   if (!plan) return res.type('text/plain; charset=utf-8').send('Aucun plan de repas. Génère d’abord une semaine.');
