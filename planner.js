@@ -7,14 +7,23 @@ function kcalOf(recipe) {
   return (recipe.protein_g || 0) * 4 + (recipe.carbs_g || 0) * 4 + (recipe.fat_g || 0) * 9;
 }
 
+function totalMinutesOf(recipe) {
+  return (recipe.prep_minutes || 0) + (recipe.cook_minutes || 0);
+}
+
 function planWeek(recipes, targets) {
   const { kcalTarget, proteinTarget, carbsTarget, fatTarget } = targets;
+  const maxTotalMinutes = targets.maxTotalMinutes || 0;
   const perMealKcal = Math.max(200, (kcalTarget || 2000) * 0.4);
   const perMealP = (proteinTarget || 120) / 2;
   const perMealC = (carbsTarget || 220) / 2;
   const perMealF = (fatTarget || 70) / 2;
 
-  const usable = recipes.filter((r) => (kcalOf(r) > 0) || (r.ingredients || []).length);
+  let usable = recipes.filter((r) => (kcalOf(r) > 0) || (r.ingredients || []).length);
+  if (maxTotalMinutes > 0) {
+    const withinTime = usable.filter((r) => totalMinutesOf(r) > 0 && totalMinutesOf(r) <= maxTotalMinutes);
+    if (withinTime.length >= 4) usable = withinTime;
+  }
   if (!usable.length) return null;
 
   const scored = usable.map((r) => {
