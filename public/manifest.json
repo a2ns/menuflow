@@ -1,0 +1,18 @@
+{
+  "name": "MenuFlow",
+  "short_name": "MenuFlow",
+  "description": "Menus hebdomadaires avec cibles calories/macros et liste de courses",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf9f7",
+  "theme_color": "#e8590c",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
