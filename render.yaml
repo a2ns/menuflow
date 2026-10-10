@@ -3,7 +3,7 @@ services:
     name: menuflow
     runtime: node
     plan: free
-    buildCommand: npm install
+    buildCommand: npm ci || npm install; npm rebuild better-sqlite3
     startCommand: npm start
     envVars:
       - key: NODE_ENV
