@@ -122,6 +122,14 @@
         <div><label>Lipides (g/jour)</label><input id="t-fat" type="number"></div>
         <div><label>Pers. — Midi</label><input id="t-servings-lunch" type="number" min="1"></div>
         <div><label>Pers. — Soir</label><input id="t-servings-dinner" type="number" min="1"></div>
+        <div><label>Temps max en cuisine</label><select id="t-max-time">
+          <option value="0">Aucune limite</option>
+          <option value="15">≤ 15 min</option>
+          <option value="25">≤ 25 min</option>
+          <option value="45">≤ 45 min</option>
+          <option value="60">≤ 1 h</option>
+          <option value="90">≤ 1 h 30</option>
+        </select></div>
       </div>
       <button class="btn" onclick="saveTargets()">💾 Enregistrer</button>
     </div>
@@ -197,6 +205,7 @@ async function loadTargets() {
   document.getElementById('t-fat').value = targets.fatTarget;
   document.getElementById('t-servings-lunch').value = targets.servingsLunch;
   document.getElementById('t-servings-dinner').value = targets.servingsDinner;
+  document.getElementById('t-max-time').value = String(targets.maxTotalMinutes || 0);
   renderMacroPreview();
 }
 
@@ -222,6 +231,7 @@ async function saveTargets() {
     fatTarget: +document.getElementById('t-fat').value,
     servingsLunch: +document.getElementById('t-servings-lunch').value || 2,
     servingsDinner: +document.getElementById('t-servings-dinner').value || 2,
+    maxTotalMinutes: +document.getElementById('t-max-time').value || 0,
   };
   const res = await fetch('/api/settings', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
   targets = await res.json();
@@ -375,6 +385,7 @@ async function loadShopping() {
   document.getElementById('stock-list').innerHTML = stock.length
     ? stock.map(s => `<span class="stock-chip">${esc(s.name)}${s.qty != null ? ' (' + esc((s.qty + ' ' + (s.unit || '')).trim()) + ')' : ''} <button onclick="delStock(${s.id})" style="border:none;background:none;color:#c0392b;cursor:pointer;padding:0 2px">✕</button></span>`).join(' ')
     : '';
+  const shopEl2 = document.getElementById('shop-servings');
   if ((data.items || []).length) {
     const sl = data.servingsLunch, sd = data.servingsDinner;
     document.getElementById('shop-servings').textContent = sl === sd ? `(pour ${sl} personne${sl > 1 ? 's' : ''} par repas)` : `(midi ${sl} pers. · soir ${sd} pers.)`;
