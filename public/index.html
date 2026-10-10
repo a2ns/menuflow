@@ -140,8 +140,22 @@
     transition: filter 0.15s var(--ease);
   }
   .recipe-item .del:hover { filter: brightness(0.95); }
+  .shop-section {
+    background: var(--card); border-radius: var(--radius); border: 1px solid var(--line);
+    box-shadow: var(--shadow-1); margin-bottom: 14px; padding: 0 14px; overflow: hidden;
+  }
+  .shop-section-title {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 800; font-size: 0.88rem; letter-spacing: 0.01em;
+    color: var(--ink); padding: 12px 0 10px; margin: 0 0 4px;
+    border-bottom: 2px solid var(--brand-soft-2);
+  }
+  .shop-count {
+    margin-left: auto; background: var(--brand-soft); color: var(--brand);
+    border-radius: 999px; padding: 2px 10px; font-size: 0.72rem; font-weight: 700;
+  }
   .shop-item {
-    display: flex; gap: 12px; align-items: center; padding: 11px 4px;
+    display: flex; gap: 12px; align-items: center; padding: 11px 2px;
     border-bottom: 1px solid var(--line); cursor: pointer;
   }
   .shop-item:last-child { border-bottom: none; }
@@ -585,7 +599,7 @@ async function loadShopping() {
     document.getElementById('shop-servings').textContent = '';
   }
   el.innerHTML = (data.items || []).length
-    ? (() => { const cats = {}; for (const i of data.items) (cats[i.category || 'Autres'] = cats[i.category || 'Autres'] || []).push(i); const ORDER = ['Fruits & Légumes','Boucherie','Poissonnerie','Crèmerie','Boulangerie','Épicerie salée','Épices & Condiments','Surgelés','Autres']; return ORDER.filter(c => cats[c]).concat(Object.keys(cats).filter(c => !ORDER.includes(c))).map(cat => `<h2 style="font-size:0.9rem;margin:14px 0 6px">${esc(cat)}</h2>` + cats[cat].map(i => `<label class="shop-item"><input type="checkbox"> <span><strong>${esc(i.name)}</strong>${i.missingLabel && i.missingLabel !== i.qtyLabel ? ' — <span style="color:#e8590c">manque ' + esc(i.missingLabel) + '</span> <span style="color:#999;font-size:0.75rem">(besoin ' + esc(i.qtyLabel) + ')</span>' : (i.qtyLabel ? ' — ' + esc(i.qtyLabel) : '')}${i.loose && i.loose.length ? ' <span style="color:#999;font-size:0.75rem">(' + esc(i.loose.join(' ; ')) + ')</span>' : ''} <span style="color:#999;font-size:0.75rem">${i.mealCount}x</span></span></label>`).join('')).join(''); })()
+    ? (() => { const cats = {}; for (const i of data.items) (cats[i.category || 'Autres'] = cats[i.category || 'Autres'] || []).push(i); const ORDER = ['Fruits & Légumes','Boucherie','Poissonnerie','Crèmerie','Boulangerie','Épicerie salée','Épices & Condiments','Surgelés','Autres']; const CAT_ICONS = { 'Fruits & Légumes':'🥕','Boucherie':'🥩','Poissonnerie':'🐟','Crèmerie':'🧀','Boulangerie':'🥖','Épicerie salée':'🥫','Épices & Condiments':'🌿','Surgelés':'🧊','Autres':'🛒' }; return ORDER.filter(c => cats[c]).concat(Object.keys(cats).filter(c => !ORDER.includes(c))).map(cat => `<div class="shop-section"><div class="shop-section-title">${CAT_ICONS[cat] || '🛒'} ${esc(cat)}<span class="shop-count">${cats[cat].length}</span></div>${cats[cat].map(i => `<label class="shop-item"><input type="checkbox"> <span><strong>${esc(i.name)}</strong>${i.missingLabel && i.missingLabel !== i.qtyLabel ? ' — <span style="color:var(--brand)">manque ' + esc(i.missingLabel) + '</span> <span style="color:var(--ink-3);font-size:0.75rem">(besoin ' + esc(i.qtyLabel) + ')</span>' : (i.qtyLabel ? ' — ' + esc(i.qtyLabel) : '')}${i.loose && i.loose.length ? ' <span style="color:var(--ink-3);font-size:0.75rem">(' + esc(i.loose.join(' ; ')) + ')</span>' : ''} <span style="color:var(--ink-3);font-size:0.75rem">${i.mealCount}x</span></span></label>`).join('')}</div>`).join(''); })()
     : '<p style="color:#999;font-size:0.85rem">Génère une semaine pour voir la liste de courses.</p>';
 }
 

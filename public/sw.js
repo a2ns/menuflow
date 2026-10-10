@@ -1,4 +1,4 @@
-const CACHE = 'menuflow-v4';
+const CACHE = 'menuflow-v5';
 self.addEventListener('install', (e) => {
   self.skipWaiting();
 });
