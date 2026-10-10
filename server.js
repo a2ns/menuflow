@@ -181,6 +181,26 @@ app.put('/api/plans/current/swap', (req, res) => {
   tx();
   res.json({ ok: true });
 });
+const UNIT_LABELS = {
+  tran: 'tranche', tranches: 'tranches', gou: 'gousse', gousse: 'gousse', gousses: 'gousses',
+  'c. à soupe': 'c. à soupe', 'c. à café': 'c. à café',
+  pincée: 'pincée', pincées: 'pincées', poignée: 'poignée', poignées: 'poignées',
+  brins: 'brins', brin: 'brin', tiges: 'tiges', tige: 'tige', branches: 'branches', branche: 'branche',
+  feuilles: 'feuilles', feuille: 'feuille', tran: 'tranche', liv: 'livre', lb: 'livre', lbs: 'livres',
+  in: 'morceau', quartiers: 'quartier', paquet: 'paquet', paquets: 'paquets',
+};
+function unitLabel(unit, count) {
+  if (!unit) return '';
+  const u = String(unit).toLowerCase();
+  let base = UNIT_LABELS[u] || unit;
+  if (count != null && /(tranche|gousse|morceau|quartier|paquet|feuille|branche|tige|brin|pincée|poignée|livre)\b/.test(base)) {
+    const singular = base.replace(/s\$/, '');
+    const plural = singular + 's';
+    if (count <= 1) return singular;
+    return plural;
+  }
+  return base;
+}
 const MASS_UNITS = { g: 1, kg: 1000, oz: 28.35, once: 28.35, onces: 28.35, liv: 454, livre: 454, livres: 454, lb: 454, lbs: 454 };
 const VOL_UNITS = { ml: 1, cl: 10, l: 1000, cup: 240, cups: 240, tasse: 240, tasses: 240 };
 const { spoonToGrams, categorize } = require('./shopping-meta');
@@ -245,13 +265,13 @@ app.get('/api/shopping-list', (req, res) => {
     } else if (e.vol > 0) {
       qtyLabel = formatAmount(e.vol, 'ml');
     } else if (e.count > 0) {
-      qtyLabel = formatAmount(e.count, e.unit);
+      qtyLabel = `${formatQty(Math.ceil(e.count))}${unitLabel(e.unit, e.count) ? ' ' + unitLabel(e.unit, e.count) : ''}`;
     }
     let missingLabel = '';
     if (!coveredByStock && (mass > 0 || vol > 0 || count > 0)) {
       if (mass > 0) missingLabel = formatAmount(mass, 'g');
       else if (vol > 0) missingLabel = formatAmount(vol, 'ml');
-      else missingLabel = formatAmount(count, e.unit);
+      else missingLabel = `${formatQty(Math.ceil(count))}${unitLabel(e.unit, count) ? ' ' + unitLabel(e.unit, count) : ''}`;
     }
     return {
       name: e.name,
@@ -359,7 +379,7 @@ app.get('/api/shopping-list/export', (req, res) => {
       let label;
       if (mass > 0) label = formatAmount(mass, 'g');
       else if (vol > 0) label = formatAmount(vol, 'ml');
-      else label = formatAmount(count, e.unit);
+      else label = `${formatQty(Math.ceil(count))}${unitLabel(e.unit, count) ? ' ' + unitLabel(e.unit, count) : ''}`;
       lines.push(`☐ ${e.name} — ${label}`);
     }
   }
