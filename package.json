@@ -1,0 +1,14 @@
+{
+  "name": "menuflow",
+  "version": "1.0.0",
+  "description": "Générateur de menus hebdomadaires avec cibles calories/macros et liste de courses",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "express": "^4.19.2"
+  }
+}
