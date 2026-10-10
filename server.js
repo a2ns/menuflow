@@ -36,7 +36,7 @@ const recipeWithIngredients = (r) => {
 };
 
 app.get('/api/recipes', (req, res) => {
-  const rows = db.prepare('SELECT * FROM recipes ORDER BY created_at DESC').all();
+  const rows = db.prepare('SELECT * FROM recipes ORDER BY id DESC').all();
   res.json(rows.map(recipeWithIngredients));
 });
 
@@ -117,12 +117,12 @@ app.put('/api/settings', (req, res) => {
 });
 
 app.get('/api/plans', (req, res) => {
-  const plans = db.prepare('SELECT * FROM meal_plans ORDER BY created_at DESC').all();
+  const plans = db.prepare('SELECT * FROM meal_plans ORDER BY id DESC').all();
   res.json(plans);
 });
 
 app.get('/api/plans/current', (req, res) => {
-  const plan = db.prepare('SELECT * FROM meal_plans ORDER BY created_at DESC LIMIT 1').get();
+  const plan = db.prepare('SELECT * FROM meal_plans ORDER BY id DESC LIMIT 1').get();
   if (!plan) return res.json(null);
   const settings = currentSettings();
   const meals = db.prepare(`
@@ -155,7 +155,7 @@ app.post('/api/plans/generate', (req, res) => {
 
 app.put('/api/plans/current/meal', (req, res) => {
   const { day, slot, recipe_id } = req.body || {};
-  const plan = db.prepare('SELECT * FROM meal_plans ORDER BY created_at DESC LIMIT 1').get();
+  const plan = db.prepare('SELECT * FROM meal_plans ORDER BY id DESC LIMIT 1').get();
   if (!plan) return res.status(404).json({ error: 'Aucun plan' });
   db.prepare('INSERT INTO plan_meals (plan_id, day, slot, recipe_id) VALUES (?, ?, ?, ?) ON CONFLICT(plan_id, day, slot) DO UPDATE SET recipe_id = excluded.recipe_id')
     .run(plan.id, day, slot, recipe_id);
@@ -166,7 +166,7 @@ const MASS_UNITS = { g: 1, kg: 1000 };
 const VOL_UNITS = { ml: 1, cl: 10, l: 1000 };
 
 app.get('/api/shopping-list', (req, res) => {
-  const plan = db.prepare('SELECT * FROM meal_plans ORDER BY created_at DESC LIMIT 1').get();
+  const plan = db.prepare('SELECT * FROM meal_plans ORDER BY id DESC LIMIT 1').get();
   if (!plan) return res.json({ items: [] });
   const settings = currentSettings();
   const rows = db.prepare(`
@@ -260,7 +260,7 @@ app.delete('/api/stock/:id', (req, res) => {
 });
 
 app.get('/api/shopping-list/export', (req, res) => {
-  const plan = db.prepare('SELECT * FROM meal_plans ORDER BY created_at DESC LIMIT 1').get();
+  const plan = db.prepare('SELECT * FROM meal_plans ORDER BY id DESC LIMIT 1').get();
   if (!plan) return res.type('text/plain; charset=utf-8').send('Aucun plan de repas. Génère d’abord une semaine.');
   const settings = currentSettings();
   const rows = db.prepare(`

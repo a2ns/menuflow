@@ -37,7 +37,14 @@ function planWeek(recipes, targets) {
   });
 
   scored.sort((a, b) => a.score - b.score);
-  const pool = scored.slice(0, Math.max(14, Math.min(scored.length, 40))).map((s) => s.recipe);
+  const poolSize = Math.max(14, Math.min(scored.length, 40));
+  const top = scored.slice(0, poolSize);
+  const pool = [];
+  while (top.length) {
+    const cutoff = Math.max(1, Math.ceil(top.length / 3));
+    const pick = Math.floor(Math.random() * Math.min(cutoff, top.length));
+    pool.push(top.splice(pick, 1)[0].recipe);
+  }
 
   const week = {};
   const used = new Set();
