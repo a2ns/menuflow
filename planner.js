@@ -19,6 +19,10 @@ function norm(s) {
 }
 
 const SYNONYMS = {
+  poulet: ['poulet', 'chicken', 'volaille', 'escalope de poulet', 'poulet hache'],
+  vegetarien: ['viande', 'poulet', 'dinde', 'canard', 'boeuf', 'veau', 'porc', 'cochon', 'agneau', 'mouton', 'gigot', 'lard', 'bacon', 'jambon', 'chorizo', 'saucisse', 'saucisses', 'merguez', 'steak', 'hache', 'escalope', 'cotelette', 'entrecote', 'filet mignon', 'roti', 'blanquette', 'carbonade', 'bourguignon', 'civet', 'kefta', 'viande hachee', 'paupiette', 'andouillette', 'coppa', 'pancetta', 'terrine', 'chicken', 'beef', 'pork', 'veal', 'lamb', 'meat', 'turkey', 'duck', 'wagyu', 'bavette', 'onglet', 'hampe', 'poitrine', 'jarret', 'paleron', 'macreuse', 'faux filet', 'faux-filet', 'tournedos', 'chateaubriand', 'minced', 'chair a saucisse', 'poisson', 'cabillaud', 'saumon', 'thon', 'dorade', 'colin', 'merlu', 'anchois', 'sardine', 'maquereau', 'truite', 'fish', 'crevette', 'fruits de mer', 'crabe', 'homard', 'langoustine', 'moule', 'huitre', 'calamar', 'encornet', 'st jacques', 'saint jacques'],
+  vegetalien: ['viande', 'poulet', 'dinde', 'canard', 'boeuf', 'veau', 'porc', 'cochon', 'agneau', 'mouton', 'gigot', 'lard', 'bacon', 'jambon', 'chorizo', 'saucisse', 'saucisses', 'merguez', 'steak', 'hache', 'escalope', 'roti', 'blanquette', 'civet', 'kefta', 'paupiette', 'coppa', 'pancetta', 'chicken', 'beef', 'pork', 'veal', 'lamb', 'meat', 'turkey', 'duck', 'bavette', 'tournedos', 'minced', 'poisson', 'cabillaud', 'saumon', 'thon', 'dorade', 'colin', 'merlu', 'anchois', 'sardine', 'maquereau', 'truite', 'fish', 'crevette', 'fruits de mer', 'crabe', 'homard', 'langoustine', 'moule', 'huitre', 'calamar', 'encornet', 'st jacques', 'saint jacques', 'lait', 'creme', 'beurre', 'fromage', 'yaourt', 'mozzarella', 'parmesan', 'comte', 'emmental', 'gruyere', 'ricotta', 'feta', 'chevre', 'lactose', 'cheddar', 'oeuf', 'omelette', 'mayonnaise', 'meringue', 'miel'],
+  vegan: ['viande', 'poulet', 'dinde', 'canard', 'boeuf', 'veau', 'porc', 'agneau', 'lard', 'bacon', 'jambon', 'chorizo', 'saucisse', 'merguez', 'steak', 'roti', 'chicken', 'beef', 'pork', 'meat', 'bavette', 'poisson', 'cabillaud', 'saumon', 'thon', 'colin', 'sardine', 'anchois', 'truite', 'fish', 'crevette', 'crabe', 'fruits de mer', 'lait', 'creme', 'beurre', 'fromage', 'yaourt', 'mozzarella', 'parmesan', 'feta', 'cheddar', 'comte', 'emmental', 'lactose', 'oeuf', 'mayonnaise', 'miel'],
   viande: ['viande', 'poulet', 'dinde', 'canard', 'boeuf', 'veau', 'porc', 'cochon', 'agneau', 'mouton', 'gigot', 'lard', 'bacon', 'jambon', 'chorizo', 'saucisse', 'saucisses', 'merguez', 'steak', 'hache', 'escalope', 'cotelette', 'entrecote', 'filet mignon', 'roti', 'blanquette', 'carbonade', 'bourguignon', 'civet', 'kefta', 'viande hachee', 'croupe', 'paupiette', 'andouillette', 'coppa', 'pancetta', 'terrine', 'chicken', 'beef', 'pork', 'veal', 'lamb', 'meat', 'turkey', 'duck', 'wagyu', 'bavette', 'onglet', 'hampe', 'poitrine', 'jarret', 'paleron', 'macreuse', 'faux filet', 'faux-filet', 'tournedos', 'chateaubriand', 'minced', 'chair a saucisse', 'chair saucisse'],
   volaille: ['poulet', 'dinde', 'canard', 'pintade', 'volaille', 'escalope'],
   'lait': ['lait', 'creme', 'beurre', 'fromage', 'yaourt', 'mozzarella', 'parmesan', 'comte', 'emmental', 'gruyere', 'ricotta', 'feta', 'chevre', 'lactose'],
@@ -34,10 +38,16 @@ const SYNONYMS = {
 
 function expandExcluded(excluded) {
   const out = new Set();
+  const add = (k) => {
+    out.add(k);
+    (SYNONYMS[k] || []).forEach(s => out.add(s));
+  };
   for (const f of excluded) {
     const n = norm(f);
-    out.add(n);
-    if (SYNONYMS[n]) SYNONYMS[n].forEach(s => out.add(s));
+    add(n);
+    for (const [key, list] of Object.entries(SYNONYMS)) {
+      if (list.some(s => norm(s) === n)) list.forEach(s => out.add(s));
+    }
   }
   return [...out];
 }
