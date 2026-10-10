@@ -24,7 +24,7 @@ function parseIngredient(line) {
   const m = text.match(/^(\d+(?:[.,]\d+)?(?:\s*\/\s*\d+)?(?:\s*(?:à|–|-)\s*\d+(?:[.,]\d+)?)?)\s*(.*)$/i);
   if (!m) return { qty: null, unit: null, name: text };
   let qty = parseQtyNumber(m[1].split(/\s*(?:à|–|-)\s*/i)[0]);
-  const rest = m[2].trim();
+  let rest = m[2].trim();
   let unit = null;
   for (const u of UNITS) {
     const um = rest.match(u.re);
