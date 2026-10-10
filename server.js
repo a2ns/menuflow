@@ -3,7 +3,7 @@ const path = require('path');
 const { db, getSetting, setSetting } = require('./db');
 const { importFromUrl } = require('./importer');
 const { DAYS, SLOTS, planWeek, weekTotals, kcalOf } = require('./planner');
-const { parseIngredient, scaleQty, formatQty, normalizeName } = require('./ingredients');
+const { parseIngredient, scaleQty, formatQty, formatAmount, normalizeName } = require('./ingredients');
 
 function storeIngredients(recipeId, lines) {
   db.prepare('DELETE FROM ingredients WHERE recipe_id = ?').run(recipeId);
@@ -20,7 +20,7 @@ function scaledIngredients(recipe, servingsWanted) {
   return rows.map((i) => {
     const scaled = scaleQty(i.qty, factor);
     const label = i.qty != null && scaled != null
-      ? `${formatQty(scaled)}${i.unit ? ' ' + i.unit : ''} ${i.name}`
+      ? `${formatAmount(scaled, i.unit)} ${i.name}`.trim()
       : i.quantity || i.name;
     return { name: i.name, qty: scaled, unit: i.unit, label, original: i.quantity };
   });
@@ -241,17 +241,17 @@ app.get('/api/shopping-list', (req, res) => {
     if (s && s.qty != null && mass === 0 && vol === 0 && count === 0 && (e.mass > 0 || e.vol > 0 || e.count > 0)) coveredByStock = true;
     let qtyLabel = '';
     if (e.mass > 0) {
-      qtyLabel = e.mass >= 1000 ? `${formatQty(e.mass / 1000)} kg` : `${formatQty(e.mass)} g`;
+      qtyLabel = formatAmount(e.mass, 'g');
     } else if (e.vol > 0) {
-      qtyLabel = e.vol >= 1000 ? `${formatQty(e.vol / 1000)} L` : `${formatQty(e.vol)} ml`;
+      qtyLabel = formatAmount(e.vol, 'ml');
     } else if (e.count > 0) {
-      qtyLabel = `${formatQty(e.count)}${e.unit ? ' ' + e.unit : ''}`;
+      qtyLabel = formatAmount(e.count, e.unit);
     }
     let missingLabel = '';
     if (!coveredByStock && (mass > 0 || vol > 0 || count > 0)) {
-      if (mass > 0) missingLabel = mass >= 1000 ? `${formatQty(mass / 1000)} kg` : `${formatQty(mass)} g`;
-      else if (vol > 0) missingLabel = vol >= 1000 ? `${formatQty(vol / 1000)} L` : `${formatQty(vol)} ml`;
-      else missingLabel = `${formatQty(count)}${e.unit ? ' ' + e.unit : ''}`;
+      if (mass > 0) missingLabel = formatAmount(mass, 'g');
+      else if (vol > 0) missingLabel = formatAmount(vol, 'ml');
+      else missingLabel = formatAmount(count, e.unit);
     }
     return {
       name: e.name,
@@ -357,9 +357,9 @@ app.get('/api/shopping-list/export', (req, res) => {
       lines.push(`☐ ${e.name}${e.loose.length ? ' (' + [...new Set(e.loose)].join(' ; ') + ')' : ''}`);
     } else {
       let label;
-      if (mass > 0) label = mass >= 1000 ? `${formatQty(mass / 1000)} kg` : `${formatQty(mass)} g`;
-      else if (vol > 0) label = vol >= 1000 ? `${formatQty(vol / 1000)} L` : `${formatQty(vol)} ml`;
-      else label = `${formatQty(count)}${e.unit ? ' ' + e.unit : ''}`;
+      if (mass > 0) label = formatAmount(mass, 'g');
+      else if (vol > 0) label = formatAmount(vol, 'ml');
+      else label = formatAmount(count, e.unit);
       lines.push(`☐ ${e.name} — ${label}`);
     }
   }

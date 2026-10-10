@@ -46,8 +46,49 @@ function scaleQty(qty, factor) {
 
 function formatQty(qty) {
   if (qty == null) return '';
+  if (qty > 0 && qty < 4) {
+    const whole = Math.floor(qty);
+    const frac = qty - whole;
+    const table = [[0, ''], [0.125, '⅛'], [0.25, '¼'], [0.333, '⅓'], [0.375, '⅜'], [0.5, '½'], [0.625, '⅝'], [0.667, '⅔'], [0.75, '¾'], [0.875, '⅞'], [1, '']];
+    for (const [val, glyph] of table) {
+      if (Math.abs(frac - val) <= 0.04) {
+        if (val === 1) return String(whole + 1);
+        if (whole === 0) return glyph || '0';
+        return glyph ? `${whole} ${glyph}` : String(whole);
+      }
+    }
+  }
   const rounded = Math.round(qty * 100) / 100;
   return Number.isInteger(rounded) ? String(rounded) : String(rounded).replace('.', ',');
+}
+
+const CUP_ML = 240, OZ_G = 28.35, LB_G = 454, PINT_ML = 473;
+
+function formatVolume(ml) {
+  if (ml >= 1000) return `${formatQty(Math.round(ml / 10) / 100)} L`;
+  const r = ml >= 100 ? Math.round(ml / 10) * 10 : Math.round(ml / 5) * 5;
+  return `${formatQty(r)} ml`;
+}
+
+function formatMass(g) {
+  if (g >= 1000) return `${formatQty(Math.round(g / 10) / 100)} kg`;
+  const r = g >= 100 ? Math.round(g) : Math.round(g / 5) * 5;
+  return `${formatQty(r)} g`;
+}
+
+function formatAmount(qty, unit) {
+  if (qty == null) return '';
+  const u = String(unit || '').toLowerCase();
+  if (/^(cups?|tasses?)$/.test(u)) return formatVolume(qty * CUP_ML);
+  if (/^(oz|onces?)$/.test(u)) return formatMass(qty * OZ_G);
+  if (/^(liv\.?|livres?|lbs?|pounds?)$/.test(u)) return formatMass(qty * LB_G);
+  if (/^(pints?|pintes?)$/.test(u)) return formatVolume(qty * PINT_ML);
+  if (/^(g|grammes?|gr)$/.test(u)) return formatMass(qty);
+  if (/^(kg|kilogrammes?|kilos?)$/.test(u)) return formatMass(qty * 1000);
+  if (/^(ml|millilitres?)$/.test(u)) return formatVolume(qty);
+  if (/^(cl|centilitres?)$/.test(u)) return formatVolume(qty * 10);
+  if (/^(l|litres?)$/.test(u)) return formatVolume(qty * 1000);
+  return `${formatQty(qty)}${unit ? ' ' + unit : ''}`;
 }
 
 function normalizeName(name) {
@@ -60,4 +101,4 @@ function normalizeName(name) {
     .trim();
 }
 
-module.exports = { parseIngredient, scaleQty, formatQty, normalizeName };
+module.exports = { parseIngredient, scaleQty, formatQty, formatAmount, formatVolume, formatMass, normalizeName };
