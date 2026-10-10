@@ -28,15 +28,19 @@ const CATEGORIES = [
   { name: 'Poissonnerie', keys: ['saumon', 'cabillaud', 'thon', 'colin', 'dorade', 'bar', 'truite', 'sardine', 'maquereau', 'anchois', 'crevette', 'moule', 'huitre', 'crabe', 'homard', 'langoustine', 'calamar', 'encornet', 'saint jacques', 'st jacques', 'poisson', 'fish', 'surimi'] },
   { name: 'Crèmerie', keys: ['lait', 'beurre', 'creme', 'yaourt', 'fromage', 'mozzarella', 'parmesan', 'comte', 'emmental', 'gruyere', 'ricotta', 'feta', 'chevre', 'cheddar', 'roquefort', 'bleu', 'mascarpone', 'fromage blanc', 'margarine'] },
   { name: 'Boulangerie', keys: ['pain', 'baguette', 'burger', 'tortilla', 'pita', 'brioche', 'chapati', 'naan', 'toast', 'bun', 'brioche', 'croissant'] },
-  { name: 'Épicerie salée', keys: ['riz', 'pates', 'pâtes', 'nouille', 'semoule', 'couscous', 'quinoa', 'boulgour', 'lentille', 'pois chiche', 'haricot blanc', 'haricot rouge', 'pois casses', 'fecule', 'maizena', 'farine', 'chapelure', 'panure', 'huile', 'vinaigre', 'bouillon', 'cube', 'fond de volaille', 'fond de boeuf', 'sauce', 'soja', 'teriyaki', 'satay', 'curry', 'moutarde', 'mayonnaise', 'ketchup', 'concentre de tomate', 'couli', 'pulpes', 'tomate', 'olive', 'olives noires', 'capre', 'cornichon', 'oeuf', 'oeufs', 'tahini', 'sirop', 'miel', 'sucre', 'cassonade', 'sachet', 'levure', 'levain'] },
+  { name: 'Épicerie salée', keys: ['riz', 'pates', 'pâtes', 'nouille', 'semoule', 'couscous', 'quinoa', 'boulgour', 'lentille', 'pois chiche', 'haricot blanc', 'haricot rouge', 'pois casses', 'fecule', 'maizena', 'farine', 'chapelure', 'panure', 'huile', 'vinaigre', 'bouillon', 'cube', 'fond de volaille', 'fond de boeuf', 'sauce', 'soja', 'teriyaki', 'barbecue', 'satay', 'curry', 'moutarde', 'mayonnaise', 'ketchup', 'concentre de tomate', 'puree de tomate', 'couli', 'pulpes', 'olive', 'olives noires', 'capre', 'cornichon', 'oeuf', 'oeufs', 'tahini', 'sirop', 'miel', 'sucre', 'cassonade', 'sachet', 'levure', 'levain'] },
   { name: 'Épices & Condiments', keys: ['sel', 'poivre', 'cumin', 'paprika', 'curcuma', 'quatre epices', 'cannelle', 'muscade', 'gingembre', 'piment', 'cayenne', 'ras el hanout', 'herbe', 'herbes', 'romarin', 'thym', 'laurier', 'safran', 'cardamome', 'anis', 'clove', 'clou de girofle', 'baie', 'mélange'] },
   { name: 'Surgelés', keys: ['surgele', 'surgelé', 'frit', 'frites', 'glace', 'petit pois surgele'] },
 ];
 function categorize(name) {
-  const n = norm(name);
+  const n = ' ' + norm(name).replace(/[^a-z0-9]+/g, ' ').trim() + ' ';
+  let best = null, bestLen = 0;
   for (const c of CATEGORIES) {
-    if (c.keys.some(k => n.includes(norm(k)))) return c.name;
+    for (const k of c.keys) {
+      const key = ' ' + norm(k).replace(/[^a-z0-9]+/g, ' ').trim() + ' ';
+      if (n.includes(key) && key.length > bestLen) { best = c.name; bestLen = key.length; }
+    }
   }
-  return 'Autres';
+  return best || 'Autres';
 }
 module.exports = { spoonToGrams, categorize, norm };
