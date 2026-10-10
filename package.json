@@ -4,6 +4,9 @@
   "description": "Générateur de menus hebdomadaires avec cibles calories/macros et liste de courses",
   "main": "server.js",
   "type": "commonjs",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "start": "node server.js"
   },
