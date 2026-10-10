@@ -82,7 +82,7 @@ app.delete('/api/recipes/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-const DEFAULT_TARGETS = { kcalTarget: 2000, proteinTarget: 120, carbsTarget: 220, fatTarget: 70, servings: 2, servingsLunch: 2, servingsDinner: 2 };
+const DEFAULT_TARGETS = { kcalTarget: 2000, proteinTarget: 120, carbsTarget: 220, fatTarget: 70, servings: 2, servingsLunch: 2, servingsDinner: 2, maxTotalMinutes: 0 };
 
 function currentSettings() {
   const s = { ...DEFAULT_TARGETS, ...getSetting('targets', {}) };
@@ -101,7 +101,7 @@ app.get('/api/settings', (req, res) => {
 
 app.put('/api/settings', (req, res) => {
   const current = currentSettings();
-  const { kcalTarget, proteinTarget, carbsTarget, fatTarget, servings, servingsLunch, servingsDinner } = req.body || {};
+  const { kcalTarget, proteinTarget, carbsTarget, fatTarget, servings, servingsLunch, servingsDinner, maxTotalMinutes } = req.body || {};
   const next = {
     kcalTarget: kcalTarget ?? current.kcalTarget,
     proteinTarget: proteinTarget ?? current.proteinTarget,
@@ -110,6 +110,7 @@ app.put('/api/settings', (req, res) => {
     servings: Math.max(1, servings ?? current.servings),
     servingsLunch: Math.max(1, servingsLunch ?? current.servingsLunch),
     servingsDinner: Math.max(1, servingsDinner ?? current.servingsDinner),
+    maxTotalMinutes: Math.max(0, maxTotalMinutes ?? current.maxTotalMinutes ?? 0),
   };
   setSetting('targets', next);
   res.json(next);
@@ -137,12 +138,10 @@ app.get('/api/plans/current', (req, res) => {
 });
 
 app.post('/api/plans/generate', (req, res) => {
-  const targets = getSetting('targets', {
-    kcalTarget: 2000, proteinTarget: 120, carbsTarget: 220, fatTarget: 70,
-  });
+  const targets = currentSettings();
   const recipes = db.prepare('SELECT * FROM recipes').all();
   const week = planWeek(recipes, targets);
-  if (!week) return res.status(400).json({ error: 'Aucune recette disponible. Importe des recettes d’abord.' });
+  if (!week) return res.status(400).json({ error: 'Aucune recette disponible. Importe des recettes d'abord.' });
   const info = db.prepare('INSERT INTO meal_plans (name, week_start, kcal_target, protein_target, carbs_target, fat_target) VALUES (?, ?, ?, ?, ?, ?)')
     .run('Semaine auto', new Date().toISOString().slice(0, 10), targets.kcalTarget, targets.proteinTarget, targets.carbsTarget, targets.fatTarget);
   const ins = db.prepare('INSERT INTO plan_meals (plan_id, day, slot, recipe_id) VALUES (?, ?, ?, ?)');
@@ -166,7 +165,10 @@ app.put('/api/plans/current/meal', (req, res) => {
 const MASS_UNITS = { g: 1, kg: 1000 };
 const VOL_UNITS = { ml: 1, cl: 10, l: 1000 };
 
-function buildShoppingMap(plan, settings) {
+app.get('/api/shopping-list', (req, res) => {
+  const plan = db.prepare('SELECT * FROM meal_plans ORDER BY created_at DESC LIMIT 1').get();
+  if (!plan) return res.json({ items: [] });
+  const settings = currentSettings();
   const rows = db.prepare(`
     SELECT i.name, i.quantity, i.qty, i.unit, r.servings as recipe_servings, pm.slot
     FROM plan_meals pm
@@ -186,50 +188,48 @@ function buildShoppingMap(plan, settings) {
       entry.mass += scaled * MASS_UNITS[i.unit];
     } else if (i.unit && VOL_UNITS[i.unit]) {
       entry.vol += scaled * VOL_UNITS[i.unit];
-    } else {
+    } else if (i.unit) {
       entry.unit = i.unit;
+      entry.count += scaled;
+    } else {
       entry.count += scaled;
     }
     map.set(key, entry);
   }
-  return map;
-}
-
-const stockByKeyMap = () => {
   const stock = db.prepare('SELECT * FROM stock').all();
-  return new Map(stock.map(s => [normalizeName(s.name), s]));
-};
-
-function applyStock(entry, s) {
-  let mass = entry.mass, vol = entry.vol, count = entry.count;
-  if (s && s.qty != null) {
-    if (mass > 0 && MASS_UNITS[s.unit]) mass -= s.qty * MASS_UNITS[s.unit];
-    else if (vol > 0 && VOL_UNITS[s.unit]) vol -= s.qty * VOL_UNITS[s.unit];
-    else if (count > 0) count -= s.qty;
-  }
-  return { mass: Math.max(0, mass), vol: Math.max(0, vol), count: Math.max(0, count) };
-}
-
-function qtyToLabel(mass, vol, count, unit) {
-  if (mass > 0) return mass >= 1000 ? `${formatQty(mass / 1000)} kg` : `${formatQty(mass)} g`;
-  if (vol > 0) return vol >= 1000 ? `${formatQty(vol / 1000)} L` : `${formatQty(vol)} ml`;
-  if (count > 0) return `${formatQty(count)}${unit ? ' ' + unit : ''}`;
-  return '';
-}
-
-app.get('/api/shopping-list', (req, res) => {
-  const plan = db.prepare('SELECT * FROM meal_plans ORDER BY created_at DESC LIMIT 1').get();
-  if (!plan) return res.json({ items: [] });
-  const settings = currentSettings();
-  const map = buildShoppingMap(plan, settings);
-  const stockBykey = stockByKeyMap();
+  const stockBykey = new Map();
+  for (const s of stock) stockBykey.set(normalizeName(s.name), s);
   const items = [...map.values()].map((e) => {
+    let mass = e.mass, vol = e.vol, count = e.count;
     const s = stockBykey.get(normalizeName(e.name));
-    const after = applyStock(e, s);
-    const hasQty = e.mass > 0 || e.vol > 0 || e.count > 0;
-    const coveredByStock = !!(s && s.qty != null && hasQty && after.mass === 0 && after.vol === 0 && after.count === 0);
-    const qtyLabel = hasQty ? qtyToLabel(e.mass, e.vol, e.count, e.unit) : '';
-    const missingLabel = (!coveredByStock && hasQty) ? qtyToLabel(after.mass, after.vol, after.count, e.unit) : '';
+    let coveredByStock = false;
+    if (s && s.qty != null) {
+      if (mass > 0 && MASS_UNITS[s.unit]) {
+        mass -= s.qty * MASS_UNITS[s.unit];
+      } else if (vol > 0 && VOL_UNITS[s.unit]) {
+        vol -= s.qty * VOL_UNITS[s.unit];
+      } else if (count > 0) {
+        count -= s.qty;
+      }
+    }
+    mass = Math.max(0, mass);
+    vol = Math.max(0, vol);
+    count = Math.max(0, count);
+    if (s && s.qty != null && mass === 0 && vol === 0 && count === 0 && (e.mass > 0 || e.vol > 0 || e.count > 0)) coveredByStock = true;
+    let qtyLabel = '';
+    if (e.mass > 0) {
+      qtyLabel = e.mass >= 1000 ? `${formatQty(e.mass / 1000)} kg` : `${formatQty(e.mass)} g`;
+    } else if (e.vol > 0) {
+      qtyLabel = e.vol >= 1000 ? `${formatQty(e.vol / 1000)} L` : `${formatQty(e.vol)} ml`;
+    } else if (e.count > 0) {
+      qtyLabel = `${formatQty(e.count)}${e.unit ? ' ' + e.unit : ''}`;
+    }
+    let missingLabel = '';
+    if (!coveredByStock && (mass > 0 || vol > 0 || count > 0)) {
+      if (mass > 0) missingLabel = mass >= 1000 ? `${formatQty(mass / 1000)} kg` : `${formatQty(mass)} g`;
+      else if (vol > 0) missingLabel = vol >= 1000 ? `${formatQty(vol / 1000)} L` : `${formatQty(vol)} ml`;
+      else missingLabel = `${formatQty(count)}${e.unit ? ' ' + e.unit : ''}`;
+    }
     return {
       name: e.name,
       mealCount: e.mealCount,
@@ -261,10 +261,28 @@ app.delete('/api/stock/:id', (req, res) => {
 
 app.get('/api/shopping-list/export', (req, res) => {
   const plan = db.prepare('SELECT * FROM meal_plans ORDER BY created_at DESC LIMIT 1').get();
-  if (!plan) return res.type('text/plain; charset=utf-8').send('Aucun plan de repas. Génère d’abord une semaine.');
+  if (!plan) return res.type('text/plain; charset=utf-8').send('Aucun plan de repas. Génère d'abord une semaine.');
   const settings = currentSettings();
-  const map = buildShoppingMap(plan, settings);
-  const stockBykey = stockByKeyMap();
+  const rows = db.prepare(`
+    SELECT i.name, i.quantity, i.qty, i.unit, r.servings as recipe_servings, pm.slot
+    FROM plan_meals pm
+    JOIN ingredients i ON i.recipe_id = pm.recipe_id
+    JOIN recipes r ON r.id = i.recipe_id
+    WHERE pm.plan_id = ?`).all(plan.id);
+  const map = new Map();
+  for (const i of rows) {
+    const key = normalizeName(i.name) || i.name;
+    const factor = Math.max(1, servingsForSlot(settings, i.slot)) / (i.recipe_servings || 2);
+    const scaled = scaleQty(i.qty, factor);
+    const entry = map.get(key) || { name: i.name, mass: 0, vol: 0, count: 0, unit: null, loose: [] };
+    if (scaled == null) entry.loose.push(i.quantity || i.name);
+    else if (i.unit && MASS_UNITS[i.unit]) entry.mass += scaled * MASS_UNITS[i.unit];
+    else if (i.unit && VOL_UNITS[i.unit]) entry.vol += scaled * VOL_UNITS[i.unit];
+    else { entry.unit = i.unit; entry.count += scaled; }
+    map.set(key, entry);
+  }
+  const stock = db.prepare('SELECT * FROM stock').all();
+  const stockBykey = new Map(stock.map(s => [normalizeName(s.name), s]));
   const lines = [];
   const sl = settings.servingsLunch, sd = settings.servingsDinner;
   lines.push('🛒 Liste de courses — MenuFlow');
@@ -272,21 +290,58 @@ app.get('/api/shopping-list/export', (req, res) => {
   lines.push('');
   let hasItems = false;
   for (const e of [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'fr'))) {
+    let mass = e.mass, vol = e.vol, count = e.count;
     const s = stockBykey.get(normalizeName(e.name));
-    const after = applyStock(e, s);
+    if (s && s.qty != null) {
+      if (mass > 0 && MASS_UNITS[s.unit]) mass -= s.qty * MASS_UNITS[s.unit];
+      else if (vol > 0 && VOL_UNITS[s.unit]) vol -= s.qty * VOL_UNITS[s.unit];
+      else if (count > 0) count -= s.qty;
+    }
+    mass = Math.max(0, mass); vol = Math.max(0, vol); count = Math.max(0, count);
+    const needsQty = mass > 0 || vol > 0 || count > 0;
     const hasQty = e.mass > 0 || e.vol > 0 || e.count > 0;
-    const needsQty = after.mass > 0 || after.vol > 0 || after.count > 0;
     if (hasQty && !needsQty) continue;
     hasItems = true;
     if (!hasQty) {
       lines.push(`☐ ${e.name}${e.loose.length ? ' (' + [...new Set(e.loose)].join(' ; ') + ')' : ''}`);
     } else {
-      lines.push(`☐ ${e.name} — ${qtyToLabel(after.mass, after.vol, after.count, e.unit)}`);
+      let label;
+      if (mass > 0) label = mass >= 1000 ? `${formatQty(mass / 1000)} kg` : `${formatQty(mass)} g`;
+      else if (vol > 0) label = vol >= 1000 ? `${formatQty(vol / 1000)} L` : `${formatQty(vol)} ml`;
+      else label = `${formatQty(count)}${e.unit ? ' ' + e.unit : ''}`;
+      lines.push(`☐ ${e.name} — ${label}`);
     }
   }
   if (!hasItems) lines.push('Rien à acheter : le frigo couvre tout ! 🎉');
   res.type('text/plain; charset=utf-8').send(lines.join('\n'));
 });
+
+function seedIfEmpty() {
+  const count = db.prepare('SELECT COUNT(*) AS c FROM recipes').get().c;
+  if (count > 0) return;
+  try {
+    const fs = require('fs');
+    const seedFiles = fs.readdirSync(__dirname)
+      .filter(f => /^seed-recipes.*\.json$/.test(f))
+      .sort();
+    const seeds = seedFiles.flatMap(f => require('./' + f));
+    const ins = db.prepare(`INSERT INTO recipes
+      (name, url, image, source, servings, prep_minutes, cook_minutes, kcal_per_serving, protein_g, carbs_g, fat_g, instructions)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    for (const s of seeds) {
+      const info = ins.run(
+        s.name, s.url || null, s.image || null, s.source || null, s.servings || 4,
+        s.prep_minutes || null, s.cook_minutes || null, s.kcal_per_serving || 0,
+        s.protein_g || 0, s.carbs_g || 0, s.fat_g || 0, s.instructions || ''
+      );
+      storeIngredients(info.lastInsertRowid, (s.ingredients || []).map(String));
+    }
+    console.log(`Seeded ${seeds.length} recipes`);
+  } catch (e) {
+    console.error('Seed failed:', e.message);
+  }
+}
+seedIfEmpty();
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
