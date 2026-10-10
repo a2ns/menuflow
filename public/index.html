@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#e8590c">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<title>MenuFlow — Menus de la semaine</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #faf9f7; color: #2b2b2b; padding-bottom: 70px; }
+  header { background: #e8590c; color: #fff; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; }
+  header h1 { font-size: 1.25rem; }
+  nav { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #eee; display: flex; z-index: 10; }
+  nav button { flex: 1; padding: 12px 4px; border: none; background: none; font-size: 0.72rem; color: #888; cursor: pointer; }
+  nav button.active { color: #e8590c; font-weight: 600; }
+  main { padding: 16px; max-width: 720px; margin: 0 auto; }
+  section { display: none; }
+  section.visible { display: block; }
+  h2 { font-size: 1.05rem; margin: 18px 0 10px; }
+  .card { background: #fff; border-radius: 12px; padding: 14px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .day { margin-bottom: 14px; }
+  .day-title { font-weight: 700; text-transform: capitalize; margin: 12px 0 6px; font-size: 0.95rem; }
+  .meal { display: flex; gap: 10px; background: #fff; border-radius: 10px; padding: 10px; margin-bottom: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); cursor: pointer; }
+  .meal img { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; }
+  .meal-name { font-weight: 600; font-size: 0.9rem; }
+  .meal-slot { font-size: 0.72rem; color: #e8590c; text-transform: uppercase; font-weight: 700; }
+  .macros { font-size: 0.78rem; color: #777; margin-top: 4px; }
+  .totals { background: #fff3e8; border-radius: 12px; padding: 12px; margin-bottom: 14px; }
+  .totals-row { display: flex; gap: 8px; justify-content: space-around; text-align: center; }
+  .totals-val { font-weight: 700; color: #e8590c; }
+  .totals-lbl { font-size: 0.72rem; color: #888; }
+  input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem; margin-bottom: 10px; }
+  .btn { background: #e8590c; color: #fff; border: none; border-radius: 10px; padding: 12px 18px; font-size: 0.95rem; font-weight: 600; cursor: pointer; width: 100%; }
+  .btn.secondary { background: #fff; color: #e8590c; border: 2px solid #e8590c; }
+  .btn.small { width: auto; padding: 6px 12px; font-size: 0.8rem; }
+  .target-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .target-grid label { font-size: 0.78rem; color: #666; display: block; margin-bottom: 3px; }
+  .recipe-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: #fff; border-radius: 10px; padding: 10px; margin-bottom: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .recipe-item .del { background: #fee; color: #c0392b; border: none; border-radius: 6px; padding: 5px 9px; cursor: pointer; }
+  .shop-item { display: flex; gap: 10px; align-items: center; padding: 9px 4px; border-bottom: 1px solid #f0f0f0; }
+  .shop-item input[type=checkbox] { width: 18px; height: 18px; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: none; align-items: center; justify-content: center; z-index: 20; padding: 16px; }
+  .modal.open { display: flex; }
+  .modal-box { background: #fff; border-radius: 14px; max-width: 480px; width: 100%; max-height: 85vh; overflow-y: auto; padding: 18px; }
+  .modal-box h3 { margin-bottom: 10px; }
+  .modal-box ol { padding-left: 20px; font-size: 0.88rem; line-height: 1.6; }
+  .modal-box ul { padding-left: 20px; font-size: 0.88rem; line-height: 1.6; }
+  .msg { padding: 10px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 10px; display: none; }
+  .msg.ok { background: #e6f7ee; color: #187a4c; display: block; }
+  .msg.err { background: #fdecea; color: #b3261e; display: block; }
+  .slot-picker { display: flex; gap: 8px; margin-bottom: 10px; }
+  .slot-picker button { flex: 1; padding: 10px; border: 2px solid #e8590c; background: #fff; color: #e8590c; border-radius: 8px; font-weight: 600; cursor: pointer; }
+  .slot-picker button.active { background: #e8590c; color: #fff; }
+  .stock-chip { display: inline-block; background: #e6f7ee; color: #187a4c; border-radius: 14px; padding: 4px 10px; font-size: 0.78rem; margin: 2px 4px 2px 0; }
+  #pick-day, #pick-slot { margin-bottom: 10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🥘 MenuFlow <span id="servings-badge" style="font-size:0.75rem;font-weight:400;opacity:0.9"></span></h1>
+  <button class="btn small" onclick="showTab('targets')">⚙️ Cibles</button>
+</header>
+
+<main>
+  <div id="msg" class="msg"></div>
+
+  <section id="tab-week">
+    <div class="totals card" id="week-totals"></div>
+    <button class="btn" onclick="generatePlan()">✨ Générer ma semaine</button>
+    <div style="text-align:center;font-size:0.8rem;color:#888;margin:8px 0" id="week-servings"></div>
+    <h2>Menu de la semaine</h2>
+    <div id="week-grid"></div>
+  </section>
+
+  <section id="tab-recipes">
+    <h2>Importer une recette</h2>
+    <div class="card">
+      <input id="import-url" type="url" placeholder="https://www.marmiton.org/recettes/...">
+      <button class="btn" onclick="importRecipe()">📥 Importer depuis l’URL</button>
+    </div>
+    <h2>Ajouter une recette manuellement</h2>
+    <div class="card">
+      <input id="m-name" placeholder="Nom de la recette">
+      <div class="target-grid">
+        <div><label>kcal / portion</label><input id="m-kcal" type="number" placeholder="550"></div>
+        <div><label>Portions</label><input id="m-servings" type="number" placeholder="2"></div>
+        <div><label>Protéines (g)</label><input id="m-protein" type="number" placeholder="30"></div>
+        <div><label>Glucides (g)</label><input id="m-carbs" type="number" placeholder="50"></div>
+        <div><label>Lipides (g)</label><input id="m-fat" type="number" placeholder="20"></div>
+      </div>
+      <input id="m-ingredients" placeholder="Ingrédients avec quantités, séparés par des virgules (ex: 200g de pâtes, 1 oignon)">
+      <textarea id="m-instructions" rows="3" placeholder="Étapes de préparation (optionnel)" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;margin-bottom:10px;font-family:inherit"></textarea>
+      <button class="btn secondary" onclick="addManualRecipe()">➕ Ajouter</button>
+    </div>
+    <h2>Mes recettes (<span id="recipe-count">0</span>)</h2>
+    <div id="recipe-list"></div>
+  </section>
+
+  <section id="tab-shopping">
+    <h2>🛒 Liste de courses <span id="shop-servings" style="font-size:0.8rem;color:#888"></span></h2>
+    <div class="card" style="display:flex;gap:8px">
+      <input id="stock-input" placeholder="J’ai déjà… (ex: 500g de pâtes)" style="margin-bottom:0">
+      <button class="btn" style="width:auto;white-space:nowrap" onclick="addStock()">➕</button>
+    </div>
+    <div id="stock-list"></div>
+    <div style="display:flex;gap:8px;margin:10px 0">
+      <button class="btn secondary" onclick="exportList('copy')">📋 Copier</button>
+      <button class="btn secondary" onclick="exportList('share')">📤 Partager</button>
+    </div>
+    <div id="shopping-list"></div>
+  </section>
+
+  <section id="tab-targets">
+    <h2>Mes cibles quotidiennes</h2>
+    <div class="card">
+      <div class="target-grid">
+        <div><label>Calories (kcal/jour)</label><input id="t-kcal" type="number"></div>
+        <div><label>Protéines (g/jour)</label><input id="t-protein" type="number"></div>
+        <div><label>Glucides (g/jour)</label><input id="t-carbs" type="number"></div>
+        <div><label>Lipides (g/jour)</label><input id="t-fat" type="number"></div>
+        <div><label>Pers. — Midi</label><input id="t-servings-lunch" type="number" min="1"></div>
+        <div><label>Pers. — Soir</label><input id="t-servings-dinner" type="number" min="1"></div>
+      </div>
+      <button class="btn" onclick="saveTargets()">💾 Enregistrer</button>
+    </div>
+    <div class="card" id="macro-preview"></div>
+    <h2>💾 Sauvegarde des données</h2>
+    <div class="card">
+      <p style="font-size:0.78rem;color:#888;margin-bottom:10px">Sur l’hébergement gratuit, le serveur redémarre régulièrement : exporte tes données ici et réimporte-les après un redémarrage.</p>
+      <button class="btn secondary" onclick="exportData()">⬇️ Exporter mes données</button>
+      <label class="btn secondary" style="display:block;text-align:center;margin-top:8px">⬆️ Importer des données
+        <input type="file" id="import-file" accept="application/json" style="display:none" onchange="importData(this)">
+      </label>
+    </div>
+  </section>
+</main>
+
+<nav>
+  <button data-tab="week" class="active" onclick="showTab('week')">📅<br>Semaine</button>
+  <button data-tab="recipes" onclick="showTab('recipes')">📖<br>Recettes</button>
+  <button data-tab="shopping" onclick="showTab('shopping')">🛒<br>Courses</button>
+  <button data-tab="targets" onclick="showTab('targets')">🎯<br>Cibles</button>
+</nav>
+
+<div class="modal" id="recipe-modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box">
+    <h3 id="rm-name"></h3>
+    <div class="macros" id="rm-macros"></div>
+    <h2 style="font-size:0.9rem">Ingrédients</h2>
+    <ul id="rm-ingredients"></ul>
+    <h2 style="font-size:0.9rem" id="rm-steps-title">Préparation</h2>
+    <ol id="rm-steps"></ol>
+    <div style="margin-top:12px">
+      <button class="btn secondary small" onclick="closeModal()">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="pick-modal" onclick="if(event.target===this)closePickModal()">
+  <div class="modal-box">
+    <h3>Placer une recette</h3>
+    <select id="pick-day"></select>
+    <div class="slot-picker">
+      <button id="pick-lunch" onclick="setPickSlot('lunch')">Midi</button>
+      <button id="pick-dinner" onclick="setPickSlot('dinner')">Soir</button>
+    </div>
+    <select id="pick-recipe"></select>
+    <button class="btn" onclick="assignMeal()">✔ Placer</button>
+  </div>
+</div>
+
+<script>
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+const DAYS = ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
+let recipes = [], targets = {}, pickSlot = 'lunch';
+
+function showMsg(text, ok) {
+  const el = document.getElementById('msg');
+  el.textContent = text;
+  el.className = 'msg ' + (ok ? 'ok' : 'err');
+  setTimeout(() => { el.className = 'msg'; }, 4000);
+}
+
+function showTab(tab) {
+  document.querySelectorAll('section').forEach(s => s.classList.remove('visible'));
+  document.getElementById('tab-' + tab).classList.add('visible');
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+}
+
+async function loadTargets() {
+  targets = await (await fetch('/api/settings')).json();
+  document.getElementById('t-kcal').value = targets.kcalTarget;
+  document.getElementById('t-protein').value = targets.proteinTarget;
+  document.getElementById('t-carbs').value = targets.carbsTarget;
+  document.getElementById('t-fat').value = targets.fatTarget;
+  document.getElementById('t-servings-lunch').value = targets.servingsLunch;
+  document.getElementById('t-servings-dinner').value = targets.servingsDinner;
+  renderMacroPreview();
+}
+
+function renderMacroPreview() {
+  const { kcalTarget, proteinTarget, carbsTarget, fatTarget } = targets;
+  const sl = targets.servingsLunch, sd = targets.servingsDinner;
+  document.getElementById('servings-badge').textContent = sl === sd ? sl + ' pers.' : `midi ${sl} · soir ${sd}`;
+  const pKcal = proteinTarget * 4, cKcal = carbsTarget * 4, fKcal = fatTarget * 9;
+  const total = pKcal + cKcal + fKcal;
+  document.getElementById('macro-preview').innerHTML = `
+    <strong>Répartition actuelle</strong><br>
+    Protéines : ${Math.round(pKcal)} kcal (${total ? Math.round(pKcal/total*100) : 0}%)<br>
+    Glucides : ${Math.round(cKcal)} kcal (${total ? Math.round(cKcal/total*100) : 0}%)<br>
+    Lipides : ${Math.round(fKcal)} kcal (${total ? Math.round(fKcal/total*100) : 0}%)<br>
+    <span style="font-size:0.78rem;color:#888">Total macros : ${total} kcal vs cible ${kcalTarget} kcal</span>`;
+}
+
+async function saveTargets() {
+  const body = {
+    kcalTarget: +document.getElementById('t-kcal').value,
+    proteinTarget: +document.getElementById('t-protein').value,
+    carbsTarget: +document.getElementById('t-carbs').value,
+    fatTarget: +document.getElementById('t-fat').value,
+    servingsLunch: +document.getElementById('t-servings-lunch').value || 2,
+    servingsDinner: +document.getElementById('t-servings-dinner').value || 2,
+  };
+  const res = await fetch('/api/settings', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  targets = await res.json();
+  renderMacroPreview();
+  await Promise.all([loadWeek(), loadShopping()]);
+  showMsg('Cibles enregistrées ✅', true);
+}
+
+async function loadRecipes() {
+  recipes = await (await fetch('/api/recipes')).json();
+  document.getElementById('recipe-count').textContent = recipes.length;
+  document.getElementById('recipe-list').innerHTML = recipes.map(r => `
+    <div class="recipe-item">
+      <div onclick="openRecipe(${r.id})" style="flex:1;cursor:pointer">
+        <strong>${esc(r.name)}</strong>
+        <div class="macros">${r.kcal} kcal · P${Math.round(r.protein_g)} C${Math.round(r.carbs_g)} F${Math.round(r.fat_g)} ${r.source ? '· ' + esc(r.source) : ''}</div>
+      </div>
+      <button class="small btn" style="padding:5px 10px;font-size:0.75rem" onclick="openPick(${r.id})">Placer</button>
+      <button class="del" onclick="deleteRecipe(${r.id})">🗑</button>
+    </div>`).join('') || '<p style="color:#999;font-size:0.85rem">Aucune recette. Importe-en depuis Marmiton ou 750g !</p>';
+  const sel = document.getElementById('pick-recipe');
+  sel.innerHTML = recipes.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('');
+}
+
+async function importRecipe() {
+  const url = document.getElementById('import-url').value.trim();
+  if (!url) return showMsg('Colle une URL de recette', false);
+  showMsg('Import en cours…', true);
+  const res = await fetch('/api/recipes/import', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ url }) });
+  const data = await res.json();
+  if (!res.ok) return showMsg(data.error, false);
+  document.getElementById('import-url').value = '';
+  await loadRecipes();
+  showMsg(`« ${data.name} » importée ✅`, true);
+}
+
+async function addManualRecipe() {
+  const body = {
+    name: document.getElementById('m-name').value.trim(),
+    kcal_per_serving: +document.getElementById('m-kcal').value || 0,
+    servings: +document.getElementById('m-servings').value || 2,
+    protein_g: +document.getElementById('m-protein').value || 0,
+    carbs_g: +document.getElementById('m-carbs').value || 0,
+    fat_g: +document.getElementById('m-fat').value || 0,
+    ingredients: document.getElementById('m-ingredients').value.split(',').map(s => s.trim()).filter(Boolean),
+    instructions: document.getElementById('m-instructions').value.trim(),
+  };
+  if (!body.name) return showMsg('Le nom est obligatoire', false);
+  const res = await fetch('/api/recipes', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (!res.ok) return showMsg('Erreur à l’ajout', false);
+  ['m-name','m-kcal','m-servings','m-protein','m-carbs','m-fat','m-ingredients','m-instructions'].forEach(id => document.getElementById(id).value = '');
+  await loadRecipes();
+  showMsg('Recette ajoutée ✅', true);
+}
+
+async function deleteRecipe(id) {
+  if (!confirm('Supprimer cette recette ?')) return;
+  await fetch('/api/recipes/' + id, { method: 'DELETE' });
+  await Promise.all([loadRecipes(), loadWeek()]);
+}
+
+function openRecipe(id, scaledIngs, servingsWanted) {
+  const r = recipes.find(x => x.id === id);
+  if (!r) return;
+  document.getElementById('rm-name').textContent = r.name;
+  document.getElementById('rm-macros').textContent = `${r.kcal} kcal/portion · P${Math.round(r.protein_g)}g C${Math.round(r.carbs_g)}g F${Math.round(r.fat_g)}g · recette pour ${r.servings} pers.` + (servingsWanted ? ` · ajustée pour ${servingsWanted} pers.` : '');
+  const ings = scaledIngs || (r.ingredients || []).map(i => ({ label: i.quantity || i.name }));
+  document.getElementById('rm-ingredients').innerHTML = ings.map(i => `<li>${esc(i.label)}</li>`).join('');
+  const steps = (r.instructions || '').split('\n\n').filter(Boolean);
+  document.getElementById('rm-steps-title').style.display = steps.length ? '' : 'none';
+  document.getElementById('rm-steps').innerHTML = steps.map(s => `<li>${esc(s)}</li>`).join('');
+  document.getElementById('recipe-modal').classList.add('open');
+}
+
+function closeModal() { document.getElementById('recipe-modal').classList.remove('open'); }
+
+function openPick(recipeId) {
+  const sel = document.getElementById('pick-recipe');
+  sel.value = recipeId;
+  document.getElementById('pick-day').innerHTML = DAYS.map(d => `<option>${d}</option>`).join('');
+  setPickSlot('lunch');
+  document.getElementById('pick-modal').classList.add('open');
+}
+
+function setPickSlot(slot) {
+  pickSlot = slot;
+  document.getElementById('pick-lunch').classList.toggle('active', slot === 'lunch');
+  document.getElementById('pick-dinner').classList.toggle('active', slot === 'dinner');
+}
+
+function closePickModal() { document.getElementById('pick-modal').classList.remove('open'); }
+
+async function assignMeal() {
+  const day = document.getElementById('pick-day').value;
+  const recipe_id = +document.getElementById('pick-recipe').value;
+  const res = await fetch('/api/plans/current/meal', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ day, slot: pickSlot, recipe_id }) });
+  if (!res.ok) return showMsg('Génère d’abord une semaine', false);
+  closePickModal();
+  await Promise.all([loadWeek(), loadShopping()]);
+  showMsg('Repas placé ✅', true);
+}
+
+async function generatePlan() {
+  const res = await fetch('/api/plans/generate', { method: 'POST' });
+  const data = await res.json();
+  if (!res.ok) return showMsg(data.error, false);
+  await Promise.all([loadWeek(), loadShopping()]);
+  showMsg('Semaine générée ✨', true);
+}
+
+async function loadWeek() {
+  const data = await (await fetch('/api/plans/current')).json();
+  const grid = document.getElementById('week-grid');
+  const totals = document.getElementById('week-totals');
+  if (!data) { grid.innerHTML = '<p style="color:#999;font-size:0.85rem">Aucun plan. Clique sur « Générer ma semaine ».</p>'; totals.innerHTML = ''; document.getElementById('week-servings').textContent = ''; return; }
+  const { week } = data;
+  const sl = data.servingsLunch || targets.servingsLunch, sd = data.servingsDinner || targets.servingsDinner;
+  document.getElementById('week-servings').textContent = sl === sd ? `Quantités pour ${sl} personne${sl > 1 ? 's' : ''}` : `Quantités : midi ${sl} pers. · soir ${sd} pers.`;
+  let kcal = 0, p = 0, c = 0, f = 0, n = 0;
+  grid.innerHTML = DAYS.map(day => `
+    <div class="day">
+      <div class="day-title">${day}</div>
+      ${['lunch','dinner'].map(slot => {
+        const r = week[day][slot];
+        if (!r) return '';
+        kcal += r.kcal; p += r.protein_g; c += r.carbs_g; f += r.fat_g; n++;
+        return `<div class="meal" onclick="openRecipe(${r.id}, r.ingredients, ${r.servingsWanted})">
+          ${r.image ? `<img src="${esc(r.image)}" onerror="this.remove()">` : ''}
+          <div>
+            <div class="meal-slot">${slot === 'lunch' ? 'Midi' : 'Soir'}</div>
+            <div class="meal-name">${esc(r.name)}</div>
+            <div class="macros">${r.kcal} kcal · P${Math.round(r.protein_g)} C${Math.round(r.carbs_g)} F${Math.round(r.fat_g)}</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+  totals.innerHTML = `
+    <div style="font-size:0.8rem;color:#888;margin-bottom:8px">Moyennes par jour (2 repas)</div>
+    <div class="totals-row">
+      <div><div class="totals-val">${n ? Math.round(kcal/n*2) : 0}</div><div class="totals-lbl">kcal (cible ${targets.kcalTarget})</div></div>
+      <div><div class="totals-val">${n ? Math.round(p/n*2) : 0} g</div><div class="totals-lbl">Protéines (${targets.proteinTarget})</div></div>
+      <div><div class="totals-val">${n ? Math.round(c/n*2) : 0} g</div><div class="totals-lbl">Glucides (${targets.carbsTarget})</div></div>
+      <div><div class="totals-val">${n ? Math.round(f/n*2) : 0} g</div><div class="totals-lbl">Lipides (${targets.fatTarget})</div></div>
+    </div>`;
+}
+
+async function loadShopping() {
+  const data = await (await fetch('/api/shopping-list')).json();
+  const el = document.getElementById('shopping-list');
+  const stock = await (await fetch('/api/stock')).json();
+  document.getElementById('stock-list').innerHTML = stock.length
+    ? stock.map(s => `<span class="stock-chip">${esc(s.name)}${s.qty != null ? ' (' + esc((s.qty + ' ' + (s.unit || '')).trim()) + ')' : ''} <button onclick="delStock(${s.id})" style="border:none;background:none;color:#c0392b;cursor:pointer;padding:0 2px">✕</button></span>`).join(' ')
+    : '';
+  if ((data.items || []).length) {
+    const sl = data.servingsLunch, sd = data.servingsDinner;
+    document.getElementById('shop-servings').textContent = sl === sd ? `(pour ${sl} personne${sl > 1 ? 's' : ''} par repas)` : `(midi ${sl} pers. · soir ${sd} pers.)`;
+  } else {
+    document.getElementById('shop-servings').textContent = '';
+  }
+  el.innerHTML = (data.items || []).length
+    ? data.items.map(i => `<label class="shop-item"><input type="checkbox"> <span><strong>${esc(i.name)}</strong>${i.missingLabel && i.missingLabel !== i.qtyLabel ? ' — <span style="color:#e8590c">manque ' + esc(i.missingLabel) + '</span> <span style="color:#999;font-size:0.75rem">(besoin ' + esc(i.qtyLabel) + ')</span>' : (i.qtyLabel ? ' — ' + esc(i.qtyLabel) : '')}${i.loose && i.loose.length ? ' <span style="color:#999;font-size:0.75rem">(' + esc(i.loose.join(' ; ')) + ')</span>' : ''} <span style="color:#999;font-size:0.75rem">${i.mealCount}x</span></span></label>`).join('')
+    : '<p style="color:#999;font-size:0.85rem">Génère une semaine pour voir la liste de courses.</p>';
+}
+
+async function addStock() {
+  const input = document.getElementById('stock-input');
+  const v = input.value.trim();
+  if (!v) return showMsg('Indique ce que tu as déjà', false);
+  const res = await fetch('/api/stock', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name: v }) });
+  if (!res.ok) return showMsg('Erreur à l’ajout', false);
+  input.value = '';
+  await loadShopping();
+  showMsg('Ajouté au frigo ✅', true);
+}
+
+async function delStock(id) {
+  await fetch('/api/stock/' + id, { method: 'DELETE' });
+  await loadShopping();
+}
+
+async function exportList(mode) {
+  const text = await (await fetch('/api/shopping-list/export')).text();
+  if (mode === 'share' && navigator.share) {
+    try { await navigator.share({ title: 'Liste de courses', text }); return; } catch {}
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    showMsg('Liste copiée dans le presse-papier ✅', true);
+  } catch {
+    const blob = new Blob([text], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'liste-de-courses.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+}
+
+async function exportData() {
+  const res = await fetch('/api/data/export');
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'menuflow-export.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showMsg('Export téléchargé ✅', true);
+}
+
+async function importData(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!confirm('Importer ces données ? Les doublons seront ajoutés.')) { input.value = ''; return; }
+  const text = await file.text();
+  const res = await fetch('/api/data/import', { method: 'POST', headers: {'Content-Type':'application/json'}, body: text });
+  const data = await res.json();
+  if (!res.ok) return showMsg(data.error || 'Erreur d’import', false);
+  input.value = '';
+  await Promise.all([loadRecipes(), loadWeek(), loadShopping()]);
+  showMsg('Données importées ✅', true);
+}
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+(async () => {
+  await loadTargets();
+  await loadRecipes();
+  await loadWeek();
+  await loadShopping();
+  showTab('week');
+})();
+</script>
+</body>
+</html>
