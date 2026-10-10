@@ -3,7 +3,7 @@ const path = require('path');
 const { db, getSetting, setSetting } = require('./db');
 const { importFromUrl } = require('./importer');
 const { DAYS, SLOTS, planWeek, weekTotals, kcalOf } = require('./planner');
-const { parseIngredient, scaleQty, formatQty, formatAmount, normalizeName } = require('./ingredients');
+const { parseIngredient, scaleQty, formatQty, formatAmount, normalizeName, canonicalName } = require('./ingredients');
 
 function storeIngredients(recipeId, lines) {
   db.prepare('DELETE FROM ingredients WHERE recipe_id = ?').run(recipeId);
@@ -197,10 +197,10 @@ app.get('/api/shopping-list', (req, res) => {
     WHERE pm.plan_id = ?`).all(plan.id);
   const map = new Map();
   for (const i of rows) {
-    const key = normalizeName(i.name) || i.name;
+    const key = canonicalName(i.name) || i.name;
     const factor = Math.max(1, servingsForSlot(settings, i.slot)) / (i.recipe_servings || 2);
     const scaled = scaleQty(i.qty, factor);
-    const entry = map.get(key) || { name: i.name, mealCount: 0, mass: 0, vol: 0, count: 0, unit: null, loose: [] };
+    const entry = map.get(key) || { name: key.charAt(0).toUpperCase() + key.slice(1), mealCount: 0, mass: 0, vol: 0, count: 0, unit: null, loose: [] };
     entry.mealCount++;
     if (scaled == null) {
       entry.loose.push(i.quantity || i.name);
@@ -221,10 +221,10 @@ app.get('/api/shopping-list', (req, res) => {
   }
   const stock = db.prepare('SELECT * FROM stock').all();
   const stockBykey = new Map();
-  for (const s of stock) stockBykey.set(normalizeName(s.name), s);
+  for (const s of stock) stockBykey.set(canonicalName(s.name), s);
   const items = [...map.values()].map((e) => {
     let mass = e.mass, vol = e.vol, count = e.count;
-    const s = stockBykey.get(normalizeName(e.name));
+    const s = stockBykey.get(canonicalName(e.name));
     let coveredByStock = false;
     if (s && s.qty != null) {
       if (mass > 0 && MASS_UNITS[s.unit]) {
@@ -286,12 +286,12 @@ app.delete('/api/stock/:id', (req, res) => {
 app.get('/api/recipes/suggest', (req, res) => {
   const stock = db.prepare('SELECT * FROM stock').all();
   const stockByName = new Map();
-  for (const s of stock) stockByName.set(normalizeName(s.name), s);
+  for (const s of stock) stockByName.set(canonicalName(s.name), s);
   const recipes = db.prepare('SELECT * FROM recipes').all().map(recipeWithIngredients);
   const scored = recipes.map((r) => {
     let have = 0, missing = [], missingMass = 0;
     for (const ing of r.ingredients || []) {
-      const key = normalizeName(ing.name);
+      const key = canonicalName(ing.name);
       const s = stockByName.get(key);
       if (s && s.qty != null && ing.qty != null) {
         const needG = (MASS_UNITS[ing.unit] ? ing.qty * MASS_UNITS[ing.unit] : (VOL_UNITS[ing.unit] ? ing.qty * VOL_UNITS[ing.unit] : null));
@@ -322,7 +322,7 @@ app.get('/api/shopping-list/export', (req, res) => {
     WHERE pm.plan_id = ?`).all(plan.id);
   const map = new Map();
   for (const i of rows) {
-    const key = normalizeName(i.name) || i.name;
+    const key = canonicalName(i.name) || i.name;
     const factor = Math.max(1, servingsForSlot(settings, i.slot)) / (i.recipe_servings || 2);
     const scaled = scaleQty(i.qty, factor);
     const entry = map.get(key) || { name: i.name, mass: 0, vol: 0, count: 0, unit: null, loose: [] };
@@ -333,7 +333,7 @@ app.get('/api/shopping-list/export', (req, res) => {
     map.set(key, entry);
   }
   const stock = db.prepare('SELECT * FROM stock').all();
-  const stockBykey = new Map(stock.map(s => [normalizeName(s.name), s]));
+  const stockBykey = new Map(stock.map(s => [canonicalName(s.name), s]));
   const lines = [];
   const sl = settings.servingsLunch, sd = settings.servingsDinner;
   lines.push('🛒 Liste de courses — MenuFlow');
@@ -342,7 +342,7 @@ app.get('/api/shopping-list/export', (req, res) => {
   let hasItems = false;
   for (const e of [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'fr'))) {
     let mass = e.mass, vol = e.vol, count = e.count;
-    const s = stockBykey.get(normalizeName(e.name));
+    const s = stockBykey.get(canonicalName(e.name));
     if (s && s.qty != null) {
       if (mass > 0 && MASS_UNITS[s.unit]) mass -= s.qty * MASS_UNITS[s.unit];
       else if (vol > 0 && VOL_UNITS[s.unit]) vol -= s.qty * VOL_UNITS[s.unit];

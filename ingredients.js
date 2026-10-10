@@ -6,7 +6,7 @@ const UNITS = [
   { re: /^(ml|millilitres?)\b/i, unit: 'ml', ml: 1 },
   { re: /^(c\.\s*à\s*c\.\s*(?:de\s*)?|cuillères?\s*à\s*café\s*(?:d[e']\s*)?|c\.à\.c\.?|càc|cac\b|cac\b|tsps?\b|teaspoons?\b)\b/i, unit: 'c. à café' },
   { re: /^(c\.\s*à\s*s\.\s*(?:de\s*)?|cuillères?\s*à\s*soupe\s*(?:d[e']\s*)?|c\.à\.s\.?|càs|cas\b|tbsp\b|tablespoons?\b)\b/i, unit: 'c. à soupe' },
-  { re: /^(tasses?|cups?|liv\.?|livres?|lb\b|lbs\b|pounds?\b|oz\b|onces?|pintes?|pints?|gousses?|tiges?|brins?|tranches?|branches?)\b/i, unit: null, countable: true },
+  { re: /^(tasses?|cups?|liv\.?|livres?|lbs?\b|pounds?\b|oz\b|onces?|pintes?|pints?|gousses?|gou\.|tran\.|tranches?|tiges?|brins?|branches?|in\b|inch(?:es)?)(?=\s|$)/i, unit: null, countable: true },
   { re: /^(pincées?|poignées?|tranches?|gousses?|feuilles?|branches?|boîtes?|boules?|sachets?|barquettes?|pots?|briques?|bottes?|tablettes?|verres?|tasses?|paquets?|pieces?|pièces?)\b/i, unit: null, countable: true },
 ];
 
@@ -31,7 +31,7 @@ function parseIngredient(line) {
   for (const u of UNITS) {
     const um = rest.match(u.re);
     if (um) {
-      unit = u.countable ? um[1].toLowerCase() : u.unit;
+      unit = u.countable ? um[1].replace(/\.$/, '').toLowerCase() : u.unit;
       rest = rest.slice(um[0].length).trim();
       break;
     }
@@ -91,6 +91,70 @@ function formatAmount(qty, unit) {
   return `${formatQty(qty)}${unit ? ' ' + unit : ''}`;
 }
 
+const CANON = {
+  'steak hache': 'boeuf hache', 'hache': 'haché',
+  'beurre de cacahuetes': 'beurre de cacahuète',
+  'chicken': 'poulet', 'beef': 'boeuf', 'ground beef': 'boeuf hache',
+  'onion': 'oignon', 'white onion': 'oignon blanc', 'red onion': 'oignon rouge',
+  'garlic': 'ail', 'carrot': 'carotte', 'tomato': 'tomate', 'potato': 'pomme de terre',
+  'rice': 'riz', 'cooked rice': 'riz cuit', 'white rice short grain cooked': 'riz cuit',
+  'gousse d\u2019ail': 'ail', 'gousse dail': 'ail', 'gousses dail': 'ail',
+  'oeuf': 'oeuf', 'oeufs': 'oeuf',
+  'graines de sesame': 'graines de sésame', 'graine de sesame': 'graines de sésame',
+  'jasmine rice cooked': 'riz cuit', 'jasmine rice': 'riz', 'white rice': 'riz', 'rice': 'riz', 'peppers': 'poivron', 'bell pepper': 'poivron',
+  'salad': 'salade', 'lettuce': 'salade', 'leaf lettuce': 'salade',
+  'red cabbage shredded': 'chou rouge', 'white cabbage': 'chou blanc', 'red cabbage': 'chou rouge',
+  'shallot': 'échalote', 'zucchini': 'courgette', 'cream': 'crème liquide',
+  'yogurt': 'yaourt', 'greek yogurt': 'yaourt grec',
+  'olive oil': 'huile d\u2019olive', 'sesame oil': 'huile de sésame',
+  'waffle fries': 'frites', 'frozen waffle fries': 'frites',
+  'emmental': 'emmental', 'swiss cheese': 'emmental',
+  'spicy mayo': 'mayonnaise', 'mayo': 'mayonnaise',
+  'parmigiano': 'parmesan', 'cheddar rape': 'cheddar',
+  'fromage rape': 'fromage râpé',
+  'sour cream': 'crème liquide',
+  'tortilla wrap': 'tortilla', 'spinach tortilla wrap': 'tortilla',
+  'hamburger buns': 'pain burger', 'pains pour hamburger': 'pain burger', 'bun': 'pain burger',
+  'bacon': 'lard', 'lard tranches': 'lard',
+  'corn': 'maïs', 'sweet corn': 'maïs',
+  'green beans': 'haricot vert', 'haricots verts': 'haricot vert',
+  'fresh basil': 'basilic', 'fresh coriander': 'coriandre', 'fresh parsley': 'persil',
+  'italian dressing': 'vinaigrette', 'ranch dressing': 'vinaigrette',
+  'leaf salade': 'salade', 'salade': 'salade',
+  'creme': 'crème liquide', 'cream': 'crème liquide',
+  'steak hache': 'boeuf haché', 'hache': 'haché',
+  'pickled jalapeno peppers': 'jalapeño', 'pickled jalapeno pepper': 'jalapeño', 'pickled jalapeno': 'jalapeño',
+  'farine de ble': 'farine', 'farine': 'farine',
+  'riz carnaroli': 'riz', 'riz': 'riz',
+  'oignon jaune': 'oignon', 'oignons jaunes': 'oignon',
+  'cane sugar': 'sucre', 'sugar': 'sucre',
+};
+
+const DROP_QUALIFIERS = [
+  /\((?:[^()]*)\)/g,
+  /\b(?:frais|fraiche|fraîches?|frais|entier|entiere|entière|entières|épluché(?:e?s?)?|coupé(?:e?s?)?|râpé(?:e?s?)?|haché(?:e?s?)?|cru(?:e?s?)?|cuit(?:e?s?)?|nature|bio|frais émincé|mincé|dés|lamelles|détaillé(?:e?s?)?|en poudre|de préférence|des cèpes de préférence)\b/gi,
+  /\b(?:primeur|yukon|gold|shredded|ground|grated|chopped|minced|cooked|crushed|smoked|fresh|frozen|liquid|liquide|sec|seche|sèche|rapes?|râpées?)\b/gi,
+  /\b(?:de\s+)?(?:première|premier)\s+qualité\b/gi,
+  /\b(?:noix|filet|gou|tran|pincée|poignée)\s+de\b/gi,
+];
+
+function canonicalName(name) {
+  let s = String(name || '').replace(/\s+/g, ' ').trim();
+  s = s.replace(/^[^a-zA-Zà-öø-ÿœŒ]+\s*/, '');
+  s = s.replace(/^Œuf\b/i, 'oeuf');
+  if (/^(gou|tran|bran|tig|brin|in|bou)\.?\s+/i.test(s)) s = s.replace(/^(gou|tran|bran|tig|brin|in|bou)\.?\s+/i, '');
+  s = s.replace(/\((?:[^()]*)\)/g, ' ');
+  for (const re of DROP_QUALIFIERS) s = s.replace(re, ' ');
+  s = s.replace(/\b(?:noix|filet|pincée|poignée)\s+d['’]\s*/gi, '');
+  s = s.replace(/^(?:de|d['’])\s+/, '');
+  s = s.replace(/\s+/g, ' ').trim().toLowerCase();
+  s = s.replace(/\b\S{4,}s\b(?!\s*(?:de|des|du))\b/g, w => /(us|ss|os|ais|is)$/i.test(w) ? w : w.slice(0, -1));
+  s = s.replace(/œ/g, 'oe').replace(/\bb\u2019?oeuf\b/g, 'boeuf');
+  const norm = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (CANON[norm]) return CANON[norm];
+  return s || String(name || '').trim();
+}
+
 function normalizeName(name) {
   return name
     .toLowerCase()
@@ -101,4 +165,4 @@ function normalizeName(name) {
     .trim();
 }
 
-module.exports = { parseIngredient, scaleQty, formatQty, formatAmount, formatVolume, formatMass, normalizeName };
+module.exports = { parseIngredient, scaleQty, formatQty, formatAmount, formatVolume, formatMass, normalizeName, canonicalName };
