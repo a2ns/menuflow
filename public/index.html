@@ -293,11 +293,13 @@ async function deleteRecipe(id) {
   await Promise.all([loadRecipes(), loadWeek()]);
 }
 
-function openRecipe(id, scaledIngs, servingsWanted) {
+function openRecipe(id, scaledIngs, servingsWanted, extras) {
   const r = recipes.find(x => x.id === id);
   if (!r) return;
   document.getElementById('rm-name').textContent = r.name;
-  document.getElementById('rm-macros').textContent = `${r.kcal} kcal/portion · P${Math.round(r.protein_g)}g C${Math.round(r.carbs_g)}g F${Math.round(r.fat_g)}g · recette pour ${r.servings} pers.` + (servingsWanted ? ` · ajustée pour ${servingsWanted} pers.` : '');
+  const src = extras || r;
+  const timeInfo = (src.prep_minutes || src.cook_minutes) ? ` · ⏱ ${src.prep_minutes || 0} min prép. + ${src.cook_minutes || 0} min cuisson` : '';
+  document.getElementById('rm-macros').textContent = `${r.kcal} kcal/portion · P${Math.round(r.protein_g)}g C${Math.round(r.carbs_g)}g F${Math.round(r.fat_g)}g · recette pour ${r.servings} pers.` + (servingsWanted ? ` · ajustée pour ${servingsWanted} pers.` : '') + timeInfo;
   const ings = scaledIngs || (r.ingredients || []).map(i => ({ label: i.quantity || i.name }));
   document.getElementById('rm-ingredients').innerHTML = ings.map(i => `<li>${esc(i.label)}</li>`).join('');
   const steps = (r.instructions || '').split('\n\n').filter(Boolean);
@@ -358,12 +360,12 @@ async function loadWeek() {
         const r = week[day][slot];
         if (!r) return '';
         kcal += r.kcal; p += r.protein_g; c += r.carbs_g; f += r.fat_g; n++;
-        return `<div class="meal" onclick="openRecipe(${r.id}, r.ingredients, ${r.servingsWanted})">
+        return `<div class="meal" onclick="openRecipe(${r.id}, ${escAttr(r.ingredients || [])}, ${r.servingsWanted || 0}, ${escAttr({ prep_minutes: r.prep_minutes || 0, cook_minutes: r.cook_minutes || 0 })})">
           ${r.image ? `<img src="${esc(r.image)}" onerror="this.remove()">` : ''}
           <div>
             <div class="meal-slot">${slot === 'lunch' ? 'Midi' : 'Soir'}</div>
             <div class="meal-name">${esc(r.name)}</div>
-            <div class="macros">${r.kcal} kcal · P${Math.round(r.protein_g)} C${Math.round(r.carbs_g)} F${Math.round(r.fat_g)}</div>
+            <div class="macros">${r.kcal} kcal · P${Math.round(r.protein_g)} C${Math.round(r.carbs_g)} F${Math.round(r.fat_g)}${(r.prep_minutes || r.cook_minutes) ? ' · ⏱ ' + ((r.prep_minutes || 0) + (r.cook_minutes || 0)) + ' min' : ''}</div>
           </div>
         </div>`;
       }).join('')}
@@ -456,6 +458,7 @@ async function importData(input) {
 }
 
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function escAttr(v) { return JSON.stringify(v ?? []).replace(/"/g, '&quot;'); }
 
 (async () => {
   await loadTargets();
