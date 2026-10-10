@@ -11,6 +11,39 @@ function totalMinutesOf(recipe) {
   return (recipe.prep_minutes || 0) + (recipe.cook_minutes || 0);
 }
 
+function norm(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+const SYNONYMS = {
+  porc: ['porc', 'cochon', 'lard', 'bacon', 'jambon', 'chorizo', 'saucisse', 'merguez', 'ventreche', 'coppa', 'pancetta', 'terrine', 'pate'],
+  'lait': ['lait', 'creme', 'beurre', 'fromage', 'yaourt', 'mozzarella', 'parmesan', 'comte', 'emmental', 'gruyere', 'ricotta', 'feta', 'chevre', 'lactose'],
+  lactose: ['lait', 'creme', 'fromage', 'yaourt', 'lactose'],
+  gluten: ['gluten', 'ble', 'farine', 'pate', 'pates', 'pain', 'semoule', 'couscous', 'orge', 'seigle', 'biscuit', 'chapelure'],
+  oeuf: ['oeuf', 'omelette', 'mayonnaise', 'meringue'],
+  poisson: ['poisson', 'cabillaud', 'saumon', 'thon', 'dorade', 'colin', 'merlu', 'anchois', 'sardine', 'maquereau', 'bar', 'truite'],
+  crevette: ['crevette', 'fruits de mer', 'crabe', 'homard', 'langoustine', 'moule', 'huitre', 'calamar', 'encornet', 'st jacques', 'saint jacques'],
+  arachide: ['arachide', 'cacahuete', 'beurre de cacahuete'],
+  veau: ['veau', 'escalope de veau', 'blanquette'],
+  boeuf: ['boeuf', 'steak', 'hache', 'burg', 'carbonade', 'pot au feu'],
+};
+
+function expandExcluded(excluded) {
+  const out = new Set();
+  for (const f of excluded) {
+    const n = norm(f);
+    out.add(n);
+    if (SYNONYMS[n]) SYNONYMS[n].forEach(s => out.add(s));
+  }
+  return [...out];
+}
+
+function containsExcluded(recipe, excluded) {
+  if (!excluded || !excluded.length) return false;
+  const haystack = norm([recipe.name, (recipe.ingredients || []).map(i => typeof i === 'string' ? i : i.name)].join(' '));
+  return expandExcluded(excluded).some(f => haystack.includes(norm(f)));
+}
+
 function planWeek(recipes, targets) {
   const { kcalTarget, proteinTarget, carbsTarget, fatTarget } = targets;
   const maxTotalMinutes = targets.maxTotalMinutes || 0;
@@ -20,6 +53,11 @@ function planWeek(recipes, targets) {
   const perMealF = (fatTarget || 70) / 2;
 
   let usable = recipes.filter((r) => (kcalOf(r) > 0) || (r.ingredients || []).length);
+  const excluded = (targets.excludedFoods || []).map(String).filter(Boolean);
+  if (excluded.length) {
+    const allowed = usable.filter((r) => !containsExcluded(r, excluded));
+    if (allowed.length >= 4) usable = allowed;
+  }
   if (maxTotalMinutes > 0) {
     const withinTime = usable.filter((r) => totalMinutesOf(r) > 0 && totalMinutesOf(r) <= maxTotalMinutes);
     if (withinTime.length >= 4) usable = withinTime;

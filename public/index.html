@@ -95,6 +95,7 @@
       <button class="btn secondary" onclick="addManualRecipe()">➕ Ajouter</button>
     </div>
     <h2>Mes recettes (<span id="recipe-count">0</span>)</h2>
+    <input id="recipe-search" type="search" placeholder="🔎 Rechercher une recette…" oninput="renderRecipeList()" style="margin-bottom:10px">
     <div id="recipe-list"></div>
   </section>
 
@@ -131,6 +132,8 @@
           <option value="90">≤ 1 h 30</option>
         </select></div>
       </div>
+      <label style="font-size:0.78rem;color:#666;display:block;margin:4px 0 3px">Régime — aliments à exclure (séparés par des virgules)</label>
+      <input id="t-excluded" placeholder="ex: porc, crevettes, lactose, arachide">
       <button class="btn" onclick="saveTargets()">💾 Enregistrer</button>
     </div>
     <div class="card" id="macro-preview"></div>
@@ -206,6 +209,7 @@ async function loadTargets() {
   document.getElementById('t-servings-lunch').value = targets.servingsLunch;
   document.getElementById('t-servings-dinner').value = targets.servingsDinner;
   document.getElementById('t-max-time').value = String(targets.maxTotalMinutes || 0);
+  document.getElementById('t-excluded').value = (targets.excludedFoods || []).join(', ');
   renderMacroPreview();
 }
 
@@ -232,6 +236,7 @@ async function saveTargets() {
     servingsLunch: +document.getElementById('t-servings-lunch').value || 2,
     servingsDinner: +document.getElementById('t-servings-dinner').value || 2,
     maxTotalMinutes: +document.getElementById('t-max-time').value || 0,
+    excludedFoods: document.getElementById('t-excluded').value.split(',').map(s => s.trim()).filter(Boolean),
   };
   const res = await fetch('/api/settings', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
   targets = await res.json();
@@ -240,10 +245,12 @@ async function saveTargets() {
   showMsg('Cibles enregistrées ✅', true);
 }
 
-async function loadRecipes() {
-  recipes = await (await fetch('/api/recipes')).json();
-  document.getElementById('recipe-count').textContent = recipes.length;
-  document.getElementById('recipe-list').innerHTML = recipes.map(r => `
+function normTxt(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+
+function renderRecipeList() {
+  const q = normTxt(document.getElementById('recipe-search').value);
+  const filtered = q ? recipes.filter(r => normTxt(r.name).includes(q)) : recipes;
+  document.getElementById('recipe-list').innerHTML = filtered.map(r => `
     <div class="recipe-item">
       <div onclick="openRecipe(${r.id})" style="flex:1;cursor:pointer">
         <strong>${esc(r.name)}</strong>
@@ -251,7 +258,13 @@ async function loadRecipes() {
       </div>
       <button class="small btn" style="padding:5px 10px;font-size:0.75rem" onclick="openPick(${r.id})">Placer</button>
       <button class="del" onclick="deleteRecipe(${r.id})">🗑</button>
-    </div>`).join('') || '<p style="color:#999;font-size:0.85rem">Aucune recette. Importe-en depuis Marmiton ou 750g !</p>';
+    </div>`).join('') || `<p style="color:#999;font-size:0.85rem">${q ? 'Aucune recette ne correspond à « ' + esc(document.getElementById('recipe-search').value) + ' ».' : 'Aucune recette. Importe-en depuis Marmiton ou 750g !'}</p>`;
+}
+
+async function loadRecipes() {
+  recipes = await (await fetch('/api/recipes')).json();
+  document.getElementById('recipe-count').textContent = recipes.length;
+  renderRecipeList();
   const sel = document.getElementById('pick-recipe');
   sel.innerHTML = recipes.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('');
 }

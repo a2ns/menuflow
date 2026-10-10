@@ -82,7 +82,7 @@ app.delete('/api/recipes/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-const DEFAULT_TARGETS = { kcalTarget: 2000, proteinTarget: 120, carbsTarget: 220, fatTarget: 70, servings: 2, servingsLunch: 2, servingsDinner: 2, maxTotalMinutes: 0 };
+const DEFAULT_TARGETS = { kcalTarget: 2000, proteinTarget: 120, carbsTarget: 220, fatTarget: 70, servings: 2, servingsLunch: 2, servingsDinner: 2, maxTotalMinutes: 0, excludedFoods: [] };
 
 function currentSettings() {
   const s = { ...DEFAULT_TARGETS, ...getSetting('targets', {}) };
@@ -101,7 +101,7 @@ app.get('/api/settings', (req, res) => {
 
 app.put('/api/settings', (req, res) => {
   const current = currentSettings();
-  const { kcalTarget, proteinTarget, carbsTarget, fatTarget, servings, servingsLunch, servingsDinner, maxTotalMinutes } = req.body || {};
+  const { kcalTarget, proteinTarget, carbsTarget, fatTarget, servings, servingsLunch, servingsDinner, maxTotalMinutes, excludedFoods } = req.body || {};
   const next = {
     kcalTarget: kcalTarget ?? current.kcalTarget,
     proteinTarget: proteinTarget ?? current.proteinTarget,
@@ -111,6 +111,7 @@ app.put('/api/settings', (req, res) => {
     servingsLunch: Math.max(1, servingsLunch ?? current.servingsLunch),
     servingsDinner: Math.max(1, servingsDinner ?? current.servingsDinner),
     maxTotalMinutes: Math.max(0, maxTotalMinutes ?? current.maxTotalMinutes ?? 0),
+    excludedFoods: Array.isArray(excludedFoods) ? excludedFoods.map(s => String(s).trim().toLowerCase()).filter(Boolean) : (current.excludedFoods || []),
   };
   setSetting('targets', next);
   res.json(next);
@@ -139,7 +140,7 @@ app.get('/api/plans/current', (req, res) => {
 
 app.post('/api/plans/generate', (req, res) => {
   const targets = currentSettings();
-  const recipes = db.prepare('SELECT * FROM recipes').all();
+  const recipes = db.prepare('SELECT * FROM recipes').all().map(recipeWithIngredients);
   const week = planWeek(recipes, targets);
   if (!week) return res.status(400).json({ error: 'Aucune recette disponible. Importe des recettes d’abord.' });
   const info = db.prepare('INSERT INTO meal_plans (name, week_start, kcal_target, protein_target, carbs_target, fat_target) VALUES (?, ?, ?, ?, ?, ?)')
