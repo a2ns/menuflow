@@ -12,11 +12,15 @@ function totalMinutesOf(recipe) {
 }
 
 function norm(s) {
-  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return String(s || '')
+    .toLowerCase()
+    .replace(/œ/g, 'oe').replace(/æ/g, 'ae')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
 const SYNONYMS = {
-  porc: ['porc', 'cochon', 'lard', 'bacon', 'jambon', 'chorizo', 'saucisse', 'merguez', 'ventreche', 'coppa', 'pancetta', 'terrine', 'pate'],
+  viande: ['viande', 'poulet', 'dinde', 'canard', 'boeuf', 'veau', 'porc', 'cochon', 'agneau', 'mouton', 'gigot', 'lard', 'bacon', 'jambon', 'chorizo', 'saucisse', 'saucisses', 'merguez', 'steak', 'hache', 'escalope', 'cotelette', 'entrecote', 'filet mignon', 'roti', 'blanquette', 'carbonade', 'bourguignon', 'civet', 'kefta', 'viande hachee', 'croupe', 'paupiette', 'andouillette', 'coppa', 'pancetta', 'terrine', 'chicken', 'beef', 'pork', 'veal', 'lamb', 'meat', 'turkey', 'duck', 'wagyu', 'bavette', 'onglet', 'hampe', 'poitrine', 'jarret', 'paleron', 'macreuse', 'faux filet', 'faux-filet', 'tournedos', 'chateaubriand', 'minced', 'chair a saucisse', 'chair saucisse'],
+  volaille: ['poulet', 'dinde', 'canard', 'pintade', 'volaille', 'escalope'],
   'lait': ['lait', 'creme', 'beurre', 'fromage', 'yaourt', 'mozzarella', 'parmesan', 'comte', 'emmental', 'gruyere', 'ricotta', 'feta', 'chevre', 'lactose'],
   lactose: ['lait', 'creme', 'fromage', 'yaourt', 'lactose'],
   gluten: ['gluten', 'ble', 'farine', 'pate', 'pates', 'pain', 'semoule', 'couscous', 'orge', 'seigle', 'biscuit', 'chapelure'],
