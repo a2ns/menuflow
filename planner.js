@@ -155,14 +155,15 @@ function planWeek(recipes, targets) {
     let candidates = pool.filter((c) => !used.has(c.recipe.id));
     if (candidates.length < 2) { used.clear(); candidates = pool.slice(); }
     let best = null, bestScore = Infinity;
-    const maxPairs = Math.min(candidates.length * Math.min(candidates.length, 20), 4000);
+    const n = candidates.length;
+    const maxPairs = Math.min(n * (n - 1) / 2, 4000);
     const seen = new Set();
-    for (let t = 0; t < maxPairs; t++) {
-      const i = Math.floor(Math.random() * candidates.length);
-      let j = Math.floor(Math.random() * candidates.length);
-      if (j === i) j = (j + 1) % candidates.length;
+    while (seen.size < maxPairs) {
+      const i = Math.floor(Math.random() * n);
+      let j = Math.floor(Math.random() * n);
+      if (j === i) j = (j + 1) % n;
       const key = i < j ? i + '-' + j : j + '-' + i;
-      if (seen.has(key)) { t--; continue; }
+      if (seen.has(key)) continue;
       seen.add(key);
       const a = candidates[i], b = candidates[j];
       const sc = pairScore(a, b);
