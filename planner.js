@@ -143,21 +143,23 @@ function planWeek(recipes, targets) {
     const c = (a.recipe.carbs_g || 0) + (b.recipe.carbs_g || 0);
     const f = (a.recipe.fat_g || 0) + (b.recipe.fat_g || 0);
     let s = Math.abs(k - dayKcal) / dayKcal + Math.abs(p - dayP) / dayP + Math.abs(c - dayC) / dayC + Math.abs(f - dayF) / dayF;
+    if (c < dayC) s += (dayC - c) / dayC;
     const famA = familyOf(a.recipe), famB = familyOf(b.recipe);
     if (usedFamilies.slice(-4).includes(famA)) s += 0.15;
     if (usedFamilies.slice(-4).includes(famB)) s += 0.15;
     if (famA === famB) s += 0.2;
-    if (used.has(a.recipe.id) || used.has(b.recipe.id)) s += 1;
-    return s;
+    if (used.has(a.recipe.id) || used.has(b.recipe.id)) s += 3;
+    return s + Math.random() * 0.6;
   };
   for (const day of DAYS) {
     week[day] = {};
     let candidates = pool.filter((c) => !used.has(c.recipe.id));
     if (candidates.length < 2) { used.clear(); candidates = pool.slice(); }
-    let best = null, bestScore = Infinity;
+    let top = [];
     const n = candidates.length;
     const maxPairs = Math.min(n * (n - 1) / 2, 4000);
     const seen = new Set();
+    let bestScore = Infinity;
     while (seen.size < maxPairs) {
       const i = Math.floor(Math.random() * n);
       let j = Math.floor(Math.random() * n);
@@ -167,9 +169,12 @@ function planWeek(recipes, targets) {
       seen.add(key);
       const a = candidates[i], b = candidates[j];
       const sc = pairScore(a, b);
-      if (sc < bestScore) { bestScore = sc; best = [a, b]; }
+      if (sc < bestScore) bestScore = sc;
+      top.push({ sc, pair: [a, b] });
     }
-    if (!best) best = [candidates[0], candidates[1] || candidates[0]];
+    top.sort((x, y) => x.sc - y.sc);
+    const near = top.filter(t => t.sc <= bestScore + 0.25).slice(0, 20);
+    const best = near.length ? near[Math.floor(Math.random() * near.length)].pair : [candidates[0], candidates[1] || candidates[0]];
     for (const pick of best) {
       used.add(pick.recipe.id);
       usedFamilies.push(familyOf(pick.recipe));
