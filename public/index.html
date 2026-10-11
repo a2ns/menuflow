@@ -515,11 +515,11 @@ function openRecipe(id, scaledIngs, servingsWanted, extras) {
 
 function closeModal() { document.getElementById('recipe-modal').classList.remove('open'); }
 
-function openPick(recipeId) {
+function openPick(recipeId, day, slot) {
   const sel = document.getElementById('pick-recipe');
-  sel.value = recipeId;
-  document.getElementById('pick-day').innerHTML = DAYS.map(d => `<option>${d}</option>`).join('');
-  setPickSlot('lunch');
+  if (recipeId) sel.value = recipeId;
+  document.getElementById('pick-day').innerHTML = DAYS.map(d => `<option ${d === day ? 'selected' : ''}>${d}</option>`).join('');
+  setPickSlot(slot || 'lunch');
   document.getElementById('pick-modal').classList.add('open');
 }
 
@@ -572,7 +572,7 @@ async function loadWeek() {
       <div class="day-title">${day}</div>
       ${['lunch','dinner'].map(slot => {
         const r = week[day][slot];
-        if (!r) return `<div class="meal empty"><div style="flex:1"><div class="meal-slot">${slot === 'lunch' ? 'Midi' : 'Soir'}</div><div class="meal-name" style="color:var(--ink-3)">Rien de prévu</div></div><button class="btn small suggest-btn" onclick="suggestMeal('${day}','${slot}')" title="Proposer une recette">✨ Proposition</button></div>`;
+        if (!r) return `<div class="meal empty"><div style="flex:1"><div class="meal-slot">${slot === 'lunch' ? 'Midi' : 'Soir'}</div><div class="meal-name" style="color:var(--ink-3)">Rien de prévu</div></div><button class="btn small secondary" onclick="openPick(null,'${day}','${slot}')" title="Choisir une recette">📋 Choisir</button><button class="btn small suggest-btn" onclick="suggestMeal('${day}','${slot}')" title="Proposer une recette">✨ Proposition</button></div>`;
         kcal += r.kcal; p += r.protein_g; c += r.carbs_g; f += r.fat_g; n++;
         return `<div class="meal">
           <div style="flex:1;cursor:pointer" onclick="openRecipe(${r.id}, ${escAttr(r.ingredients || [])}, ${r.servingsWanted || 0}, ${escAttr({ prep_minutes: r.prep_minutes || 0, cook_minutes: r.cook_minutes || 0 })})">
