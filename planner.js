@@ -126,27 +126,58 @@ function pickMeal(recipes, targets, excludeIds) {
 function planWeek(recipes, targets) {
   const pool = buildPool(recipes, targets);
   if (!pool) return null;
+  const kcalTarget = targets.kcalTarget || 2000;
+  const pTarget = targets.proteinTarget || 120;
+  const cTarget = targets.carbsTarget || 220;
+  const fTarget = targets.fatTarget || 70;
+  const dayKcal = kcalTarget;
+  const dayP = pTarget;
+  const dayC = cTarget;
+  const dayF = fTarget;
   const week = {};
   const used = new Set();
   const usedFamilies = [];
+  const pairScore = (a, b) => {
+    const k = kcalOf(a.recipe) + kcalOf(b.recipe);
+    const p = (a.recipe.protein_g || 0) + (b.recipe.protein_g || 0);
+    const c = (a.recipe.carbs_g || 0) + (b.recipe.carbs_g || 0);
+    const f = (a.recipe.fat_g || 0) + (b.recipe.fat_g || 0);
+    let s = Math.abs(k - dayKcal) / dayKcal + Math.abs(p - dayP) / dayP + Math.abs(c - dayC) / dayC + Math.abs(f - dayF) / dayF;
+    const famA = familyOf(a.recipe), famB = familyOf(b.recipe);
+    if (usedFamilies.slice(-4).includes(famA)) s += 0.15;
+    if (usedFamilies.slice(-4).includes(famB)) s += 0.15;
+    if (famA === famB) s += 0.2;
+    if (used.has(a.recipe.id) || used.has(b.recipe.id)) s += 1;
+    return s;
+  };
   for (const day of DAYS) {
     week[day] = {};
-    for (const slot of SLOTS) {
-      let candidates = pool.filter((c) => !used.has(c.recipe.id));
-      if (!candidates.length) {
-        used.clear();
-        candidates = pool.slice();
-      }
-      const idx = weightedPick(candidates, usedFamilies.slice(-3));
-      const pick = candidates[idx];
+    let candidates = pool.filter((c) => !used.has(c.recipe.id));
+    if (candidates.length < 2) { used.clear(); candidates = pool.slice(); }
+    let best = null, bestScore = Infinity;
+    const maxPairs = Math.min(candidates.length * Math.min(candidates.length, 20), 4000);
+    const seen = new Set();
+    for (let t = 0; t < maxPairs; t++) {
+      const i = Math.floor(Math.random() * candidates.length);
+      let j = Math.floor(Math.random() * candidates.length);
+      if (j === i) j = (j + 1) % candidates.length;
+      const key = i < j ? i + '-' + j : j + '-' + i;
+      if (seen.has(key)) { t--; continue; }
+      seen.add(key);
+      const a = candidates[i], b = candidates[j];
+      const sc = pairScore(a, b);
+      if (sc < bestScore) { bestScore = sc; best = [a, b]; }
+    }
+    if (!best) best = [candidates[0], candidates[1] || candidates[0]];
+    for (const pick of best) {
       used.add(pick.recipe.id);
       usedFamilies.push(familyOf(pick.recipe));
-      week[day][slot] = pick.recipe;
     }
+    week[day].lunch = best[0].recipe;
+    week[day].dinner = best[1].recipe;
   }
   return week;
 }
-
 function weekTotals(week) {
   let kcal = 0, p = 0, c = 0, f = 0, count = 0;
   for (const day of DAYS) {
