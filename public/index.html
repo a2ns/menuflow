@@ -87,7 +87,7 @@
   .meal.empty { border-style: dashed; background: transparent; box-shadow: none; align-items: center; }
   .suggest-btn { flex-shrink: 0; align-self: center; }
   .meal-actions { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
-  .meal-actions .btn { padding: 5px 9px; font-size: 0.8rem; width: auto; line-height: 1; }
+  .meal-actions .btn { padding: 5px 10px; font-size: 0.78rem; width: auto; line-height: 1.2; white-space: nowrap; }
   .meal-name { font-weight: 650; font-size: 0.92rem; letter-spacing: -0.005em; }
   .meal-slot {
     font-size: 0.68rem; color: var(--brand); text-transform: uppercase;
@@ -599,10 +599,10 @@ function renderWeekGrid(week) {
           </div>
           ${r.image ? `<img src="${esc(r.image)}" onerror="this.remove()" onclick="openRecipe(${r.id}, ${escAttr(r.ingredients || [])}, ${r.servingsWanted || 0}, ${escAttr({ prep_minutes: r.prep_minutes || 0, cook_minutes: r.cook_minutes || 0 })})">` : ''}
           <div class="meal-actions">
-            <button class="btn small secondary" style="align-self:center" onclick="suggestMeal('${day}','${slot}')" title="Remplacer par une proposition">✨</button>
-            <button class="btn small secondary" style="align-self:center" onclick="openPick(null,'${day}','${slot}')" title="Choisir une autre recette">📋</button>
-            <button class="btn small secondary" style="align-self:center" onclick="openMove('${day}','${slot}')" title="Déplacer">⇄</button>
-            <button class="btn small secondary" style="align-self:center" onclick="clearMeal('${day}','${slot}')" title="Vider le créneau">🗑️</button>
+            <button class="btn small secondary" style="align-self:center" onclick="suggestMeal('${day}','${slot}')" title="Remplacer par une proposition">✨ Remplacer</button>
+            <button class="btn small secondary" style="align-self:center" onclick="openPick(null,'${day}','${slot}')" title="Choisir une autre recette">📋 Choisir</button>
+            <button class="btn small secondary" style="align-self:center" onclick="openMove('${day}','${slot}')" title="Déplacer le repas">⇄ Déplacer</button>
+            <button class="btn small secondary" style="align-self:center" onclick="clearMeal('${day}','${slot}')" title="Vider le créneau">🗑️ Vider</button>
           </div>
         </div>`;
       }).join('')}
