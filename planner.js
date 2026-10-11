@@ -79,7 +79,8 @@ function buildPool(recipes, targets) {
     if (allowed.length >= 4) usable = allowed;
   }
   if (maxTotalMinutes > 0) {
-    const withinTime = usable.filter((r) => totalMinutesOf(r) > 0 && totalMinutesOf(r) <= maxTotalMinutes);
+    const prepOf = (r) => (r.prep_minutes > 0 ? r.prep_minutes : totalMinutesOf(r));
+    const withinTime = usable.filter((r) => prepOf(r) > 0 && prepOf(r) <= maxTotalMinutes);
     if (withinTime.length >= 4) usable = withinTime;
   }
   if (!usable.length) return null;
