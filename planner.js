@@ -58,6 +58,13 @@ function containsExcluded(recipe, excluded) {
   return expandExcluded(excluded).some(f => haystack.includes(norm(f)));
 }
 
+function familyOf(recipe) {
+  const words = ['poulet','boeuf','veau','porc','agneau','dinde','canard','saumon','thon','cabillaud','poisson','crevette','moule','legume','pates','riz','quinoa','oeuf','fromage','pizza','burger','soupe','salade','tartiflette','gratin','curry','lasagne'];
+  const n = norm([recipe.name, ((recipe.ingredients || [])[0] || {}).name || ''].join(' '));
+  for (const w of words) if (n.includes(w)) return w;
+  return 'autre';
+}
+
 function buildPool(recipes, targets) {
   const { kcalTarget, proteinTarget, carbsTarget, fatTarget } = targets;
   const maxTotalMinutes = targets.maxTotalMinutes || 0;
@@ -86,25 +93,33 @@ function buildPool(recipes, targets) {
     return { recipe: r, k, score: 0.6 * kcalScore + 0.4 * macroScore };
   });
   scored.sort((a, b) => a.score - b.score);
-  const poolSize = Math.max(14, Math.min(scored.length, 40));
-  const top = scored.slice(0, poolSize);
-  const pool = [];
-  while (top.length) {
-    const cutoff = Math.max(1, Math.ceil(top.length / 3));
-    const pick = Math.floor(Math.random() * Math.min(cutoff, top.length));
-    pool.push(top.splice(pick, 1)[0].recipe);
+  const poolSize = Math.max(60, Math.min(scored.length, 150));
+  return scored.slice(0, poolSize);
+}
+
+function weightedPick(candidates, usedFamilies) {
+  const weights = candidates.map((c) => {
+    let w = Math.exp(-c.score * 3.5);
+    if (usedFamilies.length && usedFamilies.includes(familyOf(c.recipe))) w *= 0.25;
+    return w;
+  });
+  const total = weights.reduce((a, b) => a + b, 0);
+  let x = Math.random() * total;
+  for (let i = 0; i < candidates.length; i++) {
+    x -= weights[i];
+    if (x <= 0) return i;
   }
-  return pool;
+  return candidates.length - 1;
 }
 
 function pickMeal(recipes, targets, excludeIds) {
   const pool = buildPool(recipes, targets);
   if (!pool) return null;
   const excl = new Set(excludeIds || []);
-  let candidates = pool.filter(r => !excl.has(r.id));
+  let candidates = pool.filter(c => !excl.has(c.recipe.id));
   if (!candidates.length) candidates = pool;
-  const cutoff = Math.max(1, Math.ceil(candidates.length / 3));
-  return candidates[Math.floor(Math.random() * Math.min(cutoff, candidates.length))] || null;
+  const idx = weightedPick(candidates, []);
+  return candidates[idx].recipe || null;
 }
 
 function planWeek(recipes, targets) {
@@ -112,26 +127,20 @@ function planWeek(recipes, targets) {
   if (!pool) return null;
   const week = {};
   const used = new Set();
-  let poolIdx = 0;
+  const usedFamilies = [];
   for (const day of DAYS) {
     week[day] = {};
     for (const slot of SLOTS) {
-      let pick = null;
-      for (let i = 0; i < pool.length; i++) {
-        const cand = pool[(poolIdx + i) % pool.length];
-        if (!used.has(cand.id)) {
-          pick = cand;
-          poolIdx = poolIdx + i + 1;
-          break;
-        }
-      }
-      if (!pick) {
+      let candidates = pool.filter((c) => !used.has(c.recipe.id));
+      if (!candidates.length) {
         used.clear();
-        pick = pool[poolIdx % pool.length];
-        poolIdx++;
+        candidates = pool.slice();
       }
-      used.add(pick.id);
-      week[day][slot] = pick;
+      const idx = weightedPick(candidates, usedFamilies.slice(-3));
+      const pick = candidates[idx];
+      used.add(pick.recipe.id);
+      usedFamilies.push(familyOf(pick.recipe));
+      week[day][slot] = pick.recipe;
     }
   }
   return week;
