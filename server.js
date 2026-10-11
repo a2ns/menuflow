@@ -172,6 +172,10 @@ function ensurePlan() {
 app.put('/api/plans/current/meal', (req, res) => {
   const { day, slot, recipe_id } = req.body || {};
   const plan = ensurePlan();
+  if (!recipe_id) {
+    db.prepare('DELETE FROM plan_meals WHERE plan_id = ? AND day = ? AND slot = ?').run(plan.id, day, slot);
+    return res.json({ ok: true });
+  }
   db.prepare('INSERT INTO plan_meals (plan_id, day, slot, recipe_id) VALUES (?, ?, ?, ?) ON CONFLICT(plan_id, day, slot) DO UPDATE SET recipe_id = excluded.recipe_id')
     .run(plan.id, day, slot, recipe_id);
   res.json({ ok: true });

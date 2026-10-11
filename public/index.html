@@ -86,6 +86,8 @@
   .meal img { width: 68px; height: 68px; border-radius: var(--radius-xs); object-fit: cover; flex-shrink: 0; }
   .meal.empty { border-style: dashed; background: transparent; box-shadow: none; align-items: center; }
   .suggest-btn { flex-shrink: 0; align-self: center; }
+  .meal-actions { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+  .meal-actions .btn { padding: 5px 9px; font-size: 0.8rem; width: auto; line-height: 1; }
   .meal-name { font-weight: 650; font-size: 0.92rem; letter-spacing: -0.005em; }
   .meal-slot {
     font-size: 0.68rem; color: var(--brand); text-transform: uppercase;
@@ -541,6 +543,12 @@ async function assignMeal() {
   showMsg('Repas placé ✅', true);
 }
 
+async function clearMeal(day, slot) {
+  await fetch('/api/plans/current/meal', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ day, slot, recipe_id: 0 }) });
+  await Promise.all([loadWeek(), loadShopping(), loadSuggestions()]);
+  showMsg('Créneau vidé', true);
+}
+
 async function suggestMeal(day, slot) {
   showMsg('Proposition en cours…', true);
   const res = await fetch('/api/plans/current/suggest-meal', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ day, slot }) });
@@ -581,7 +589,12 @@ async function loadWeek() {
             <div class="macros">${r.kcal} kcal · P${Math.round(r.protein_g)} C${Math.round(r.carbs_g)} F${Math.round(r.fat_g)}${(r.prep_minutes || r.cook_minutes) ? ' · ⏱ ' + ((r.prep_minutes || 0) + (r.cook_minutes || 0)) + ' min' : ''}</div>
           </div>
           ${r.image ? `<img src="${esc(r.image)}" onerror="this.remove()" onclick="openRecipe(${r.id}, ${escAttr(r.ingredients || [])}, ${r.servingsWanted || 0}, ${escAttr({ prep_minutes: r.prep_minutes || 0, cook_minutes: r.cook_minutes || 0 })})">` : ''}
-          <button class="btn small" style="padding:8px 10px;font-size:0.85rem;align-self:center" onclick="openMove('${day}','${slot}')" title="Déplacer">⇄</button>
+          <div class="meal-actions">
+            <button class="btn small secondary" style="align-self:center" onclick="suggestMeal('${day}','${slot}')" title="Remplacer par une proposition">✨</button>
+            <button class="btn small secondary" style="align-self:center" onclick="openPick(null,'${day}','${slot}')" title="Choisir une autre recette">📋</button>
+            <button class="btn small secondary" style="align-self:center" onclick="openMove('${day}','${slot}')" title="Déplacer">⇄</button>
+            <button class="btn small secondary" style="align-self:center" onclick="clearMeal('${day}','${slot}')" title="Vider le créneau">🗑️</button>
+          </div>
         </div>`;
       }).join('')}
     </div>`).join('');
