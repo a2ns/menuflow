@@ -84,6 +84,8 @@
   .meal:hover { transform: translateY(-1px); box-shadow: var(--shadow-2); }
   .meal:active { transform: scale(0.985); }
   .meal img { width: 68px; height: 68px; border-radius: var(--radius-xs); object-fit: cover; flex-shrink: 0; }
+  .meal.empty { border-style: dashed; background: transparent; box-shadow: none; align-items: center; }
+  .suggest-btn { flex-shrink: 0; align-self: center; }
   .meal-name { font-weight: 650; font-size: 0.92rem; letter-spacing: -0.005em; }
   .meal-slot {
     font-size: 0.68rem; color: var(--brand); text-transform: uppercase;
@@ -539,6 +541,15 @@ async function assignMeal() {
   showMsg('Repas placé ✅', true);
 }
 
+async function suggestMeal(day, slot) {
+  showMsg('Proposition en cours…', true);
+  const res = await fetch('/api/plans/current/suggest-meal', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ day, slot }) });
+  const data = await res.json();
+  if (!res.ok) return showMsg(data.error || 'Erreur', false);
+  await Promise.all([loadWeek(), loadShopping(), loadSuggestions()]);
+  showMsg(`Proposition placée le ${day} ${slot === 'lunch' ? 'midi' : 'soir'} ✨`, true);
+}
+
 async function generatePlan() {
   const res = await fetch('/api/plans/generate', { method: 'POST' });
   const data = await res.json();
@@ -561,7 +572,7 @@ async function loadWeek() {
       <div class="day-title">${day}</div>
       ${['lunch','dinner'].map(slot => {
         const r = week[day][slot];
-        if (!r) return '';
+        if (!r) return `<div class="meal empty"><div style="flex:1"><div class="meal-slot">${slot === 'lunch' ? 'Midi' : 'Soir'}</div><div class="meal-name" style="color:var(--ink-3)">Rien de prévu</div></div><button class="btn small suggest-btn" onclick="suggestMeal('${day}','${slot}')" title="Proposer une recette">✨ Proposition</button></div>`;
         kcal += r.kcal; p += r.protein_g; c += r.carbs_g; f += r.fat_g; n++;
         return `<div class="meal">
           <div style="flex:1;cursor:pointer" onclick="openRecipe(${r.id}, ${escAttr(r.ingredients || [])}, ${r.servingsWanted || 0}, ${escAttr({ prep_minutes: r.prep_minutes || 0, cook_minutes: r.cook_minutes || 0 })})">

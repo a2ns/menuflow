@@ -58,14 +58,13 @@ function containsExcluded(recipe, excluded) {
   return expandExcluded(excluded).some(f => haystack.includes(norm(f)));
 }
 
-function planWeek(recipes, targets) {
+function buildPool(recipes, targets) {
   const { kcalTarget, proteinTarget, carbsTarget, fatTarget } = targets;
   const maxTotalMinutes = targets.maxTotalMinutes || 0;
   const perMealKcal = Math.max(200, (kcalTarget || 2000) * 0.4);
   const perMealP = (proteinTarget || 120) / 2;
   const perMealC = (carbsTarget || 220) / 2;
   const perMealF = (fatTarget || 70) / 2;
-
   let usable = recipes.filter((r) => (kcalOf(r) > 0) || (r.ingredients || []).length);
   const excluded = (targets.excludedFoods || []).map(String).filter(Boolean);
   if (excluded.length) {
@@ -77,7 +76,6 @@ function planWeek(recipes, targets) {
     if (withinTime.length >= 4) usable = withinTime;
   }
   if (!usable.length) return null;
-
   const scored = usable.map((r) => {
     const k = kcalOf(r);
     const kcalScore = Math.abs(k - perMealKcal) / perMealKcal;
@@ -87,7 +85,6 @@ function planWeek(recipes, targets) {
         Math.abs((r.fat_g || 0) - perMealF) / (perMealF || 1)) / 3;
     return { recipe: r, k, score: 0.6 * kcalScore + 0.4 * macroScore };
   });
-
   scored.sort((a, b) => a.score - b.score);
   const poolSize = Math.max(14, Math.min(scored.length, 40));
   const top = scored.slice(0, poolSize);
@@ -97,7 +94,22 @@ function planWeek(recipes, targets) {
     const pick = Math.floor(Math.random() * Math.min(cutoff, top.length));
     pool.push(top.splice(pick, 1)[0].recipe);
   }
+  return pool;
+}
 
+function pickMeal(recipes, targets, excludeIds) {
+  const pool = buildPool(recipes, targets);
+  if (!pool) return null;
+  const excl = new Set(excludeIds || []);
+  let candidates = pool.filter(r => !excl.has(r.id));
+  if (!candidates.length) candidates = pool;
+  const cutoff = Math.max(1, Math.ceil(candidates.length / 3));
+  return candidates[Math.floor(Math.random() * Math.min(cutoff, candidates.length))] || null;
+}
+
+function planWeek(recipes, targets) {
+  const pool = buildPool(recipes, targets);
+  if (!pool) return null;
   const week = {};
   const used = new Set();
   let poolIdx = 0;
@@ -147,4 +159,4 @@ function weekTotals(week) {
   };
 }
 
-module.exports = { DAYS, SLOTS, planWeek, weekTotals, kcalOf };
+module.exports = { DAYS, SLOTS, planWeek, pickMeal, buildPool, weekTotals, kcalOf };

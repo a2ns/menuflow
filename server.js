@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const { db, getSetting, setSetting } = require('./db');
 const { importFromUrl } = require('./importer');
-const { DAYS, SLOTS, planWeek, weekTotals, kcalOf } = require('./planner');
+const { DAYS, SLOTS, planWeek, pickMeal, weekTotals, kcalOf } = require('./planner');
 const { parseIngredient, scaleQty, formatQty, formatAmount, normalizeName, canonicalName } = require('./ingredients');
 
 function storeIngredients(recipeId, lines) {
@@ -154,13 +154,45 @@ app.post('/api/plans/generate', (req, res) => {
   res.json({ id: info.lastInsertRowid, totals: weekTotals(week) });
 });
 
+function currentPlan() {
+  return db.prepare('SELECT * FROM meal_plans ORDER BY id DESC LIMIT 1').get();
+}
+
+function ensurePlan() {
+  let plan = currentPlan();
+  if (!plan) {
+    const t = currentSettings();
+    const info = db.prepare('INSERT INTO meal_plans (name, week_start, kcal_target, protein_target, carbs_target, fat_target) VALUES (?, ?, ?, ?, ?, ?)')
+      .run('Ma semaine', new Date().toISOString().slice(0, 10), t.kcalTarget, t.proteinTarget, t.carbsTarget, t.fatTarget);
+    plan = db.prepare('SELECT * FROM meal_plans WHERE id = ?').get(info.lastInsertRowid);
+  }
+  return plan;
+}
+
 app.put('/api/plans/current/meal', (req, res) => {
   const { day, slot, recipe_id } = req.body || {};
-  const plan = db.prepare('SELECT * FROM meal_plans ORDER BY id DESC LIMIT 1').get();
-  if (!plan) return res.status(404).json({ error: 'Aucun plan' });
+  const plan = ensurePlan();
   db.prepare('INSERT INTO plan_meals (plan_id, day, slot, recipe_id) VALUES (?, ?, ?, ?) ON CONFLICT(plan_id, day, slot) DO UPDATE SET recipe_id = excluded.recipe_id')
     .run(plan.id, day, slot, recipe_id);
   res.json({ ok: true });
+});
+
+app.post('/api/plans/current/suggest-meal', (req, res) => {
+  const { day, slot } = req.body || {};
+  if (!DAYS.includes(day) || !SLOTS.includes(slot)) return res.status(400).json({ error: 'Créneau invalide' });
+  const targets = currentSettings();
+  const recipes = db.prepare('SELECT * FROM recipes').all().map(recipeWithIngredients);
+  const plan = currentPlan();
+  const excludeIds = plan
+    ? db.prepare('SELECT recipe_id FROM plan_meals WHERE plan_id = ? AND NOT (day = ? AND slot = ?)').all(plan.id, day, slot).map(r => r.recipe_id)
+    : [];
+  const pick = pickMeal(recipes, targets, excludeIds);
+  if (!pick) return res.status(400).json({ error: 'Aucune recette ne correspond à tes critères.' });
+  const saved = ensurePlan();
+  db.prepare('INSERT INTO plan_meals (plan_id, day, slot, recipe_id) VALUES (?, ?, ?, ?) ON CONFLICT(plan_id, day, slot) DO UPDATE SET recipe_id = excluded.recipe_id')
+    .run(saved.id, day, slot, pick.id);
+  const s = servingsForSlot(targets, slot);
+  res.json(recipeWithIngredients({ ...pick, servingsWanted: s, ingredients: scaledIngredients(pick, s) }));
 });
 app.put('/api/plans/current/swap', (req, res) => {
   const { fromDay, fromSlot, toDay, toSlot } = req.body || {};
