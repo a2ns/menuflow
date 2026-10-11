@@ -568,12 +568,21 @@ async function generatePlan() {
 
 async function loadWeek() {
   const data = await (await fetch('/api/plans/current')).json();
-  const grid = document.getElementById('week-grid');
-  const totals = document.getElementById('week-totals');
-  if (!data) { grid.innerHTML = '<p style="color:#999;font-size:0.85rem">Aucun plan. Clique sur « Générer ma semaine ».</p>'; totals.innerHTML = ''; document.getElementById('week-servings').textContent = ''; return; }
+  if (!data) {
+    const week = {};
+    DAYS.forEach(day => { week[day] = { lunch: null, dinner: null }; });
+    document.getElementById('week-servings').textContent = 'Planifie toi-même ou génère une semaine complète';
+    renderWeekGrid(week);
+    return;
+  }
   const { week } = data;
   const sl = data.servingsLunch || targets.servingsLunch, sd = data.servingsDinner || targets.servingsDinner;
   document.getElementById('week-servings').textContent = sl === sd ? `Quantités pour ${sl} personne${sl > 1 ? 's' : ''}` : `Quantités : midi ${sl} pers. · soir ${sd} pers.`;
+  renderWeekGrid(week);
+}
+
+function renderWeekGrid(week) {
+  const grid = document.getElementById('week-grid');
   let kcal = 0, p = 0, c = 0, f = 0, n = 0;
   grid.innerHTML = DAYS.map(day => `
     <div class="day">
@@ -598,6 +607,7 @@ async function loadWeek() {
         </div>`;
       }).join('')}
     </div>`).join('');
+  const totals = document.getElementById('week-totals');
   totals.innerHTML = `
     <div style="font-size:0.8rem;color:#888;margin-bottom:8px">Moyennes par jour (2 repas)</div>
     <div class="totals-row">
@@ -607,6 +617,7 @@ async function loadWeek() {
       <div><div class="totals-val">${n ? Math.round(f/n*2) : 0} g</div><div class="totals-lbl">Lipides (${targets.fatTarget})</div></div>
     </div>`;
 }
+
 
 async function loadShopping() {
   const data = await (await fetch('/api/shopping-list')).json();
